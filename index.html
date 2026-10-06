@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <meta name="theme-color" content="#050508" />
+  <meta name="theme-color" content="#101326" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <title>Gabba After Dark — Prototype</title>
+  <title>Gabba After Dark</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -16,51 +16,37 @@
 
   <div id="hud" class="hidden">
     <div id="topbar">
-      <div class="panel stat"><span class="label">OBJECTIVE</span><span id="objective">DJ LANCE</span></div>
+      <div class="panel stat"><span class="label">GOAL</span><span id="objective">FIND EVERYONE</span></div>
       <div class="panel stat"><span class="label">FOUND</span><span id="count">0 / 10</span></div>
       <div class="panel stat mini"><span class="label">TIME</span><span id="timer">0:00</span></div>
-      <div class="panel stat mini"><span class="label">THREAT</span><span id="threat">QUIET</span></div>
-      <div class="panel health-panel">
-        <span class="label">HEALTH</span>
-        <div class="health-track"><div id="health-fill"></div></div>
-      </div>
+      <div class="panel stat mini"><span class="label">DANGER</span><span id="threat">QUIET</span></div>
+      <div class="panel health-panel"><span class="label">HEALTH</span><div class="health-track"><div id="health-fill"></div></div></div>
     </div>
-
     <div id="message" aria-live="polite"></div>
-
     <div id="mobile-controls">
-      <div id="joystick" class="touch-zone" aria-label="movement joystick">
-        <div id="joystick-knob"></div>
-      </div>
+      <div id="joystick" class="touch-zone" aria-label="movement joystick"><div id="joystick-knob"></div></div>
       <button id="sprint" class="round-button action-button" type="button">RUN</button>
       <div id="power-buttons"></div>
     </div>
-
     <div id="crosshair">+</div>
-    <div id="desktop-help">WASD move · drag mouse to look · Shift run · 1–5 songs</div>
+    <div id="desktop-help">WASD move · drag to look · Shift run · 1–5 songs</div>
   </div>
 
   <div id="start-screen" class="screen active">
     <div class="card">
-      <p class="eyebrow">FAN-GAME PROTOTYPE · MOBILE FIRST</p>
       <h1>GABBA<br/>AFTER DARK</h1>
-      <p>DJ Lance is trapped inside the Super Music Friends Show TV box. Find Plex, Muno, Foofa, Toodie, and Brobee, recover their five song powers, then make it back to the TV alive.</p>
-      <div class="instructions">
-        <strong>PHONE:</strong> left thumb moves · drag the right side to look · hold RUN to sprint · song buttons unlock when found.<br/>
-        <strong>DESKTOP:</strong> WASD + mouse drag · Shift to sprint · keys 1–5 use songs.<br/>
-        <strong>WARNING:</strong> every rescued friend wakes a corrupted hunter. Stay too long and Gooble joins the hunt.
-      </div>
-      <button id="start-button" class="primary" type="button">ENTER GABBA LAND</button>
-      <small>No copyrighted character art, models, songs, logos, or show audio are included. Everything visible here is an original geometric stand-in.</small>
+      <p><strong>DJ LANCE IS TRAPPED!</strong></p>
+      <p>Find the 5 Gabba characters and their songs to save him!</p>
+      <button id="start-button" class="primary" type="button">PLAY</button>
     </div>
   </div>
 
   <div id="end-screen" class="screen">
     <div class="card">
       <p class="eyebrow" id="end-eyebrow">SIGNAL LOST</p>
-      <h2 id="end-title">THE DARK GOT YOU</h2>
-      <p id="end-copy">You can go back in and try again.</p>
-      <button id="restart-button" class="primary" type="button">RESTART</button>
+      <h2 id="end-title">TRY AGAIN!</h2>
+      <p id="end-copy"></p>
+      <button id="restart-button" class="primary" type="button">PLAY AGAIN</button>
     </div>
   </div>
 
