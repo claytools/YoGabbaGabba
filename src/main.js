@@ -59,13 +59,10 @@ const POWERS = [
 ];
 
 const WALLS = [
-  [-21, 0, 2, 34, 4], [21, 0, 2, 34, 4],
-  [0, -22, 34, 2, 4], [0, 22, 34, 2, 4],
-  [-10, -12, 12, 2, 3.2], [8, -11, 11, 2, 3.2],
-  [-6, 11, 2, 13, 3.2], [8, 11, 2, 13, 3.2],
-  [-15, 3, 9, 2, 3.2], [14, 3, 8, 2, 3.2],
-  [0, 1, 2, 12, 3.2], [-1, -16, 2, 7, 3.2],
-  [-13, 16, 2, 7, 3.2], [14, -17, 2, 6, 3.2],
+  [-25, 0, 1, 50, 2.4], [25, 0, 1, 50, 2.4],
+  [0, -25, 50, 1, 2.4], [0, 25, 50, 1, 2.4],
+  [-7, -7, 5, 1.3, 1.8], [8, -7, 5, 1.3, 1.8],
+  [-7, 7, 5, 1.3, 1.8], [8, 7, 5, 1.3, 1.8],
 ];
 
 const gameEl = document.querySelector('#game');
@@ -102,7 +99,7 @@ gameEl.appendChild(renderer.domElement);
 
 const clock = new THREE.Clock();
 const player = {
-  position: new THREE.Vector3(0, CONFIG.playerHeight, 0),
+  position: new THREE.Vector3(0, CONFIG.playerHeight, 14),
   yaw: 0,
   pitch: 0,
   health: CONFIG.maxHealth,
@@ -133,31 +130,44 @@ let lanceScreen = null;
 let scentUntil = 0;
 let scentTargetId = null;
 
-// ---------- visual setup ----------
-scene.add(new THREE.HemisphereLight(0x61709b, 0x120b12, 0.22));
-const moon = new THREE.DirectionalLight(0x8ca6ff, 0.35);
-moon.position.set(-8, 16, 6);
+// ---------- Gabba Land ----------
+scene.background = new THREE.Color(0x151a2c);
+scene.fog = new THREE.FogExp2(0x151a2c, 0.017);
+
+scene.add(new THREE.HemisphereLight(0xb8d9ff, 0x442b50, 1.25));
+const moon = new THREE.DirectionalLight(0xfff0c7, 1.05);
+moon.position.set(-8, 18, 9);
 scene.add(moon);
 
-const flashlight = new THREE.SpotLight(0xf0f0d8, 6.4, 17, Math.PI / 7, 0.55, 1.35);
+const flashlight = new THREE.SpotLight(0xfff4d6, 8.2, 23, Math.PI / 6, 0.5, 1.2);
 flashlight.position.set(0, 0, 0);
-flashlight.target.position.set(0, 0, -4);
+flashlight.target.position.set(0, 0, -5);
 camera.add(flashlight);
 camera.add(flashlight.target);
 scene.add(camera);
 
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(60, 60),
-  new THREE.MeshLambertMaterial({ color: 0x111116 })
+function addGround(x, z, color) {
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(25, 25),
+    new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: .08 })
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(x, 0, z);
+  scene.add(mesh);
+}
+addGround(-12.5, -12.5, 0x5b3b83); // Muno Land
+addGround(-12.5,  12.5, 0x86a83d); // Foofa Land
+addGround( 12.5, -12.5, 0x9a4e2a); // Brobee Land
+addGround( 12.5,  12.5, 0x4b9fc8); // Toodee Land
+
+const stationFloor = new THREE.Mesh(
+  new THREE.CylinderGeometry(6.4, 6.4, .22, 20),
+  new THREE.MeshLambertMaterial({ color: 0xd0a62a, emissive: 0x6c4d08, emissiveIntensity: .25 })
 );
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
+stationFloor.position.y = .11;
+scene.add(stationFloor);
 
-const grid = new THREE.GridHelper(50, 25, 0x272431, 0x17151c);
-grid.position.y = 0.012;
-scene.add(grid);
-
-const wallMaterial = new THREE.MeshLambertMaterial({ color: 0x292831 });
+const wallMaterial = new THREE.MeshLambertMaterial({ color: 0x332f43 });
 for (const [x, z, w, d, h] of WALLS) {
   const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMaterial);
   wall.position.set(x, h / 2, z);
@@ -165,31 +175,131 @@ for (const [x, z, w, d, h] of WALLS) {
   collisionBoxes.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
 }
 
-// Sparse dead-garden props for a cheap creepy silhouette on phones.
-const postMat = new THREE.MeshLambertMaterial({ color: 0x18151b });
-for (let i = 0; i < 26; i++) {
-  const a = (i / 26) * Math.PI * 2;
-  const r = 19 + (i % 3) * 1.35;
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 2.5 + (i % 4) * .25, 5), postMat);
-  post.position.set(Math.cos(a) * r, 1.3, Math.sin(a) * r);
-  post.rotation.z = ((i % 5) - 2) * .035;
-  scene.add(post);
+const rockMat = new THREE.MeshLambertMaterial({ color: 0x8353a7 });
+for (let i = 0; i < 13; i++) {
+  const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(.65 + (i % 3) * .22, 0), rockMat);
+  rock.scale.y = 1.2 + (i % 2) * .6;
+  rock.position.set(-22 + (i % 5) * 4.1, .7, -22 + Math.floor(i / 5) * 4.5);
+  scene.add(rock);
+}
+
+for (let i = 0; i < 20; i++) {
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(.035, .05, .65, 5), new THREE.MeshLambertMaterial({ color: 0x3d6d2c }));
+  stem.position.set(-23 + (i % 5) * 4.2, .33, 4 + Math.floor(i / 5) * 5.1);
+  scene.add(stem);
+  const flower = new THREE.Mesh(new THREE.SphereGeometry(.18, 6, 4), new THREE.MeshBasicMaterial({ color: i % 2 ? 0xff9fc5 : 0xffe86a }));
+  flower.position.set(stem.position.x, .74, stem.position.z);
+  scene.add(flower);
+}
+
+const trunkMat = new THREE.MeshLambertMaterial({ color: 0x55321f });
+const leafMat = new THREE.MeshLambertMaterial({ color: 0xc16a28 });
+for (let i = 0; i < 13; i++) {
+  const x = 4 + (i % 4) * 5.5, z = -22 + Math.floor(i / 4) * 5.6;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.18, .27, 2.4, 6), trunkMat);
+  trunk.position.set(x, 1.2, z);
+  scene.add(trunk);
+  const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(.72 + (i % 3) * .12, 0), leafMat);
+  crown.position.set(x, 2.5, z);
+  scene.add(crown);
+}
+
+const iceMat = new THREE.MeshLambertMaterial({ color: 0xa9e9ff, emissive: 0x1c6680, emissiveIntensity: .18 });
+for (let i = 0; i < 15; i++) {
+  const shard = new THREE.Mesh(new THREE.ConeGeometry(.34 + (i % 3) * .1, 1.3 + (i % 4) * .3, 5), iceMat);
+  shard.position.set(4 + (i % 4) * 5.5, .65, 4 + Math.floor(i / 4) * 5.3);
+  scene.add(shard);
+}
+
+for (let i = 0; i < 8; i++) {
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(.55, 1.8, .55), new THREE.MeshLambertMaterial({ color: 0xe4c23a }));
+  const a = i / 8 * Math.PI * 2;
+  tower.position.set(Math.cos(a) * 5.1, .9, Math.sin(a) * 5.1);
+  scene.add(tower);
+}
+
+function basicMat(color, dark = false) {
+  return new THREE.MeshLambertMaterial({
+    color: dark ? 0x101014 : color,
+    emissive: color,
+    emissiveIntensity: dark ? .18 : .12
+  });
+}
+function eye(root, x, y, z, scale = 1) {
+  const white = new THREE.Mesh(new THREE.SphereGeometry(.13 * scale, 10, 7), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  white.position.set(x, y, z);
+  root.add(white);
+  const pupil = new THREE.Mesh(new THREE.SphereGeometry(.055 * scale, 8, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+  pupil.position.set(x, y, z - .105 * scale);
+  root.add(pupil);
+}
+function limb(root, x, y, length, color, horizontal = false) {
+  const m = new THREE.Mesh(new THREE.CapsuleGeometry(.08, length, 4, 7), basicMat(color));
+  m.position.set(x, y, 0);
+  if (horizontal) m.rotation.z = Math.PI / 2;
+  root.add(m);
+}
+function makeGabbaFigure(def, dark = false) {
+  const root = new THREE.Group();
+  const c = def.color;
+
+  if (def.id === 'plex') {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(.82, 1.05, .5), basicMat(c, dark));
+    body.position.y = 1.05; root.add(body);
+    const face = new THREE.Mesh(new THREE.BoxGeometry(.58, .35, .04), new THREE.MeshBasicMaterial({ color: dark ? 0x080808 : 0x26252b }));
+    face.position.set(0, 1.24, -.27); root.add(face);
+    eye(root, -.14, 1.25, -.31, .72); eye(root, .14, 1.25, -.31, .72);
+    limb(root, -.56, 1.05, .58, dark ? 0x777777 : 0xb9bdc4, true);
+    limb(root,  .56, 1.05, .58, dark ? 0x777777 : 0xb9bdc4, true);
+    limb(root, -.22, .37, .55, dark ? 0x777777 : 0xb9bdc4);
+    limb(root,  .22, .37, .55, dark ? 0x777777 : 0xb9bdc4);
+    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.46,5), basicMat(dark ? 0x555555 : 0xc0c0c0));
+    antenna.position.set(0,1.82,0); root.add(antenna);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(.09,7,5), basicMat(0xe64a3d,dark));
+    ball.position.set(0,2.07,0); root.add(ball);
+  } else if (def.id === 'muno') {
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(.44, 1.2, 5, 9), basicMat(c, dark));
+    body.position.y = 1.2; root.add(body);
+    eye(root, 0, 1.55, -.43, 1.25);
+    for (let i=0;i<14;i++) {
+      const bump = new THREE.Mesh(new THREE.SphereGeometry(.07,5,4), basicMat(c,dark));
+      const a=i*2.4; bump.position.set(Math.sin(a)*.41,.55+(i%6)*.23,Math.cos(a)*.34); root.add(bump);
+    }
+    limb(root,-.5,.9,.5,c,true); limb(root,.5,.9,.5,c,true);
+  } else if (def.id === 'foofa') {
+    const body = new THREE.Mesh(new THREE.SphereGeometry(.58, 10, 8), basicMat(c, dark));
+    body.scale.set(.9,1.35,.82); body.position.y = 1.0; root.add(body);
+    eye(root,-.16,1.25,-.48,.85); eye(root,.16,1.25,-.48,.85);
+    const center = new THREE.Mesh(new THREE.SphereGeometry(.16,8,6), basicMat(0xffefef,dark)); center.position.set(0,1.86,0); root.add(center);
+    for(let i=0;i<6;i++){ const p=new THREE.Mesh(new THREE.SphereGeometry(.19,7,5),basicMat(dark?0x553548:0xffd9e7,dark)); const a=i/6*Math.PI*2; p.position.set(Math.cos(a)*.28,1.86+Math.sin(a)*.28,0); p.scale.set(.65,1,.5); root.add(p); }
+    limb(root,-.48,.98,.45,c,true); limb(root,.48,.98,.45,c,true);
+  } else if (def.id === 'toodee') {
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(.43,.82,5,8),basicMat(c,dark)); body.position.y=.98; root.add(body);
+    eye(root,-.15,1.25,-.41,.85); eye(root,.15,1.25,-.41,.85);
+    for(const x of [-.23,.23]) { const ear=new THREE.Mesh(new THREE.ConeGeometry(.16,.42,4),basicMat(c,dark)); ear.position.set(x,1.7,0); root.add(ear); }
+    const belly=new THREE.Mesh(new THREE.SphereGeometry(.33,8,6),basicMat(dark?0x222a30:0x9fd7f2,dark)); belly.scale.set(.8,1.15,.25); belly.position.set(0,.9,-.38); root.add(belly);
+    limb(root,-.48,.95,.45,c,true); limb(root,.48,.95,.45,c,true);
+  } else if (def.id === 'brobee') {
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(.47,.72,5,8),basicMat(c,dark)); body.position.y=.93; root.add(body);
+    eye(root,-.15,1.18,-.44,.82); eye(root,.15,1.18,-.44,.82);
+    for(const y of [.65,.92,1.19]) { const stripe=new THREE.Mesh(new THREE.TorusGeometry(.43,.07,5,14),basicMat(dark?0x113015:0x226f35,dark)); stripe.rotation.x=Math.PI/2; stripe.position.y=y; root.add(stripe); }
+    for(const x of [-.23,.23]) { const horn=new THREE.Mesh(new THREE.ConeGeometry(.11,.34,5),basicMat(0xe85a41,dark)); horn.position.set(x,1.65,0); root.add(horn); }
+    limb(root,-.5,.9,.45,c,true); limb(root,.5,.9,.45,c,true);
+  } else {
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(.5,.8,5,8),basicMat(0xe8e8f2,dark)); body.position.y=1; root.add(body);
+    eye(root,-.14,1.22,-.45,.78); eye(root,.14,1.22,-.45,.78);
+  }
+  return root;
 }
 
 function makeCharacterStandIn(def) {
-  const root = new THREE.Group();
-  const mat = new THREE.MeshLambertMaterial({ color: def.color, emissive: def.color, emissiveIntensity: 0.14 });
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.46, 0.85, 4, 8), mat);
-  body.position.y = 0.95;
-  root.add(body);
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf5f5ee }));
-  eye.position.set(0, 1.22, -0.43);
-  root.add(eye);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.045, 6, 20), new THREE.MeshBasicMaterial({ color: def.color }));
+  const root = makeGabbaFigure(def, false);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.05, 6, 20), new THREE.MeshBasicMaterial({ color: def.color }));
   ring.rotation.x = Math.PI / 2;
   ring.position.y = 0.08;
   root.add(ring);
   root.position.set(def.x, 0.05, def.z);
+  root.scale.setScalar(1.18);
   root.userData = { type: 'character', id: def.id, name: def.name, color: def.color };
   scene.add(root);
   collectibles.push(root);
@@ -287,32 +397,15 @@ function makeLanceTV() {
 makeLanceTV();
 
 function makeEnemy(characterDef, index, options = {}) {
-  const root = new THREE.Group();
   const isGooble = options.gooble === true;
-  const baseColor = isGooble ? 0x5c58a3 : characterDef.color;
-  const mat = new THREE.MeshLambertMaterial({
-    color: isGooble ? 0x16131f : 0x08080a,
-    emissive: baseColor,
-    emissiveIntensity: isGooble ? .16 : .22,
-  });
-  const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(isGooble ? .66 : .58, isGooble ? 1.75 : 2.0, 4, 7),
-    mat
-  );
-  body.position.y = 1.58;
-  root.add(body);
+  const def = isGooble ? { id: 'gooble', name: 'Gooble', color: 0xc7c1df } : characterDef;
+  const root = makeGabbaFigure(def, true);
+  root.scale.setScalar(isGooble ? 1.35 : 1.62);
 
-  const faceMat = new THREE.MeshBasicMaterial({ color: isGooble ? 0xb8b0d8 : baseColor });
-  const face = new THREE.Mesh(new THREE.SphereGeometry(.28, 8, 6), faceMat);
-  face.scale.set(.78, 1.25, .22);
-  face.position.set(0, 2.55, -.5);
-  root.add(face);
-
-  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xf3f0e8 });
-  for (const x of [-.09, .09]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(.035, 6, 5), eyeMat);
-    eye.position.set(x, 2.61, -.57);
-    root.add(eye);
+  if (isGooble) {
+    const tearMat = new THREE.MeshBasicMaterial({ color: 0x79bff0 });
+    const tear = new THREE.Mesh(new THREE.SphereGeometry(.08,6,5), tearMat);
+    tear.scale.set(.55,1.5,.45); tear.position.set(.18,1.05,-.48); root.add(tear);
   }
 
   const spawnPoints = [
@@ -322,7 +415,7 @@ function makeEnemy(characterDef, index, options = {}) {
   root.position.set(sx, 0, sz);
   root.userData = {
     id: isGooble ? 'gooble' : 'hunter-' + characterDef.id,
-    name: isGooble ? 'Gooble' : characterDef.name + ' hunter',
+    name: isGooble ? 'Gooble' : characterDef.name,
     speed: isGooble ? 1.05 : 1.52 + index * .16,
     stunnedUntil: 0,
     phase: Math.random() * 10,
@@ -332,10 +425,10 @@ function makeEnemy(characterDef, index, options = {}) {
   enemies.push(root);
 
   if (isGooble) {
-    showMessage('GOOBLE HAS ENTERED GABBA LAND. He is slow. He does not stop.', 4400);
+    showMessage('GOOBLE IS HERE.', 3300);
     beep(92, .5);
   } else {
-    showMessage(characterDef.name + ' is rescued. Something shaped like ' + characterDef.name + ' woke up.', 3200);
+    showMessage(characterDef.name.toUpperCase() + ' FOUND! RUN!', 2600);
   }
 }
 
@@ -456,12 +549,12 @@ function collect(item) {
   } else {
     player.unlocked.add(item.userData.id);
     const power = POWERS.find(p => p.id === item.userData.id);
-    showMessage(power.owner + ': ' + power.song + ' unlocked — ' + power.description, 3600);
+    showMessage(power.song.toUpperCase() + ' UNLOCKED!', 2600);
   }
 
   if (player.collected.size >= CONFIG.lanceUnlockCount && !lanceUnlocked) {
     lanceUnlocked = true;
-    showMessage('ALL TEN FOUND. THE TV BOX UNLOCKED — GET BACK TO DJ LANCE.', 5200);
+    showMessage('ALL 10 FOUND! GET BACK TO DJ LANCE!', 4800);
     beep(1040, .28);
   }
   updateHud();
@@ -590,7 +683,7 @@ function usePower(id) {
 function updateHud() {
   countEl.textContent = player.collected.size + ' / 10';
   healthFill.style.width = Math.max(0, player.health) + '%';
-  objectiveEl.textContent = lanceUnlocked ? 'RETURN TO TV' : 'DJ LANCE';
+  objectiveEl.textContent = lanceUnlocked ? 'SAVE DJ LANCE' : 'FIND EVERYONE';
 
   const now = performance.now() / 1000;
   const elapsed = started ? Math.max(0, now - gameStartTime) : 0;
@@ -621,11 +714,11 @@ function finish(won) {
   if (won) {
     endEyebrow.textContent = 'SUPER MUSIC FRIENDS SHOW SIGNAL RESTORED';
     endTitle.textContent = 'DJ LANCE IS OUT';
-    endCopy.textContent = 'You found all five friends, recovered all five song powers, and made it back to the TV box alive.';
+    endCopy.textContent = 'YOU SAVED DJ LANCE!';
   } else {
     endEyebrow.textContent = 'SIGNAL LOST';
     endTitle.textContent = 'THE DARK GOT YOU';
-    endCopy.textContent = 'You recovered ' + player.collected.size + ' of 10 collectibles. Try another route and save the songs for when the hunters stack up.';
+    endCopy.textContent = 'YOU FOUND ' + player.collected.size + ' OF 10. TRY AGAIN!';
   }
 }
 
@@ -823,7 +916,7 @@ function beginGame() {
   startScreen.classList.remove('active');
   endScreen.classList.remove('active');
   hudEl.classList.remove('hidden');
-  showMessage('Find the five friends and five song powers. Every friend you rescue wakes their hunter.', 4700);
+  showMessage('DJ LANCE IS TRAPPED! FIND 5 FRIENDS + 5 SONGS.', 4200);
   pickupSoundCtx?.resume?.();
 }
 
