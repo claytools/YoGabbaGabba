@@ -6,7 +6,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.m
 // ============================================================
 
 const CONFIG = {
-  worldHalfSize: 25,
+  worldHalfSize: 32,
   playerHeight: 1.65,
   playerRadius: 0.42,
   walkSpeed: 6.0,
@@ -27,46 +27,49 @@ const CONFIG = {
 };
 
 const CHARACTERS = [
-  { id: 'plex', name: 'Plex', color: 0xf6c642, x: -18, z: -17 },
-  { id: 'muno', name: 'Muno', color: 0xe53e35, x: 18, z: -15 },
-  { id: 'foofa', name: 'Foofa', color: 0xf37ca4, x: -17, z: 15 },
-  { id: 'toodee', name: 'Toodie', color: 0x4a9be8, x: 17, z: 17 },
-  { id: 'brobee', name: 'Brobee', color: 0x69b856, x: 2, z: -20 },
+  { id: 'plex', name: 'Plex', color: 0xf6c642, x: -23, z: -21 },
+  { id: 'muno', name: 'Muno', color: 0xe53e35, x: 24, z: -20 },
+  { id: 'foofa', name: 'Foofa', color: 0xf37ca4, x: -23, z: 21 },
+  { id: 'toodee', name: 'Toodie', color: 0x4a9be8, x: 23, z: 23 },
+  { id: 'brobee', name: 'Brobee', color: 0x69b856, x: 4, z: -25 },
 ];
 
 const POWERS = [
   {
     id: 'tummy', owner: 'Brobee', label: 'TUMMY', song: 'Party in My Tummy', icon: '♪', color: 0x83d36e,
-    x: 11, z: 7, cooldown: 26,
+    x: 18, z: 9, cooldown: 26,
     description: 'Healing song — restores 45 health.'
   },
   {
     id: 'flowers', owner: 'Foofa', label: 'FLOWERS', song: 'I Love Flowers', icon: '♪', color: 0xf5a4bf,
-    x: -5, z: -11, cooldown: 24,
+    x: -8, z: -18, cooldown: 24,
     description: 'Flower dizzy-lines confuse and stun nearby hunters.'
   },
   {
     id: 'bugs', owner: 'Muno', label: 'BUGS', song: 'I Like Bugs', icon: '♪', color: 0xe65b55,
-    x: -11, z: 5, cooldown: 22,
+    x: -18, z: 6, cooldown: 22,
     description: 'Ride a giant beetle under your POV for a burst of speed.'
   },
   {
     id: 'fish', owner: 'Toodie', label: 'FISH', song: 'I Like Fish', icon: '♪', color: 0x68b5ee,
-    x: 14, z: -2, cooldown: 18,
+    x: 22, z: -3, cooldown: 18,
     description: 'Creates a fishy scent trail toward Toodie, Brobee, or Party in My Tummy.'
   },
   {
     id: 'space', owner: 'Plex', label: 'SPACE', song: 'Give Baby Space', icon: '♪', color: 0xf9dd73,
-    x: -14, z: -3, cooldown: 32,
+    x: -20, z: -5, cooldown: 32,
     description: 'Sends every active hunter to the far side of the map.'
   },
 ];
 
 const WALLS = [
-  [-25, 0, 1, 50, 2.4], [25, 0, 1, 50, 2.4],
-  [0, -25, 50, 1, 2.4], [0, 25, 50, 1, 2.4],
-  [-7, -7, 5, 1.3, 1.8], [8, -7, 5, 1.3, 1.8],
-  [-7, 7, 5, 1.3, 1.8], [8, 7, 5, 1.3, 1.8],
+  [-32, 0, 1, 64, 2.8], [32, 0, 1, 64, 2.8],
+  [0, -32, 64, 1, 2.8], [0, 32, 64, 1, 2.8],
+  [-8, -8, 6, 1.4, 2.1], [9, -8, 6, 1.4, 2.1],
+  [-8, 8, 6, 1.4, 2.1], [9, 8, 6, 1.4, 2.1],
+  [-22, 13, 8, 1.2, 2.2], [-18, 18, 1.2, 9, 2.2],
+  [20, -15, 7, 1.2, 2.2], [24, -11, 1.2, 8, 2.2],
+  [17, 21, 8, 1.2, 2.0]
 ];
 
 const appShell = document.querySelector('#app-shell');
@@ -79,6 +82,19 @@ const startButton = document.querySelector('#start-button');
 const restartButton = document.querySelector('#restart-button');
 const heartsEl = document.querySelector('#hearts');
 const countEl = document.querySelector('#count');
+const jumpscareEl = document.querySelector('#jumpscare');
+const jumpscareName = document.querySelector('#jumpscare-name');
+const settingsScreen = document.querySelector('#settings-screen');
+const settingsButton = document.querySelector('#settings-button');
+const ingameSettings = document.querySelector('#ingame-settings');
+const settingsClose = document.querySelector('#settings-close');
+const settingsReset = document.querySelector('#settings-reset');
+const settingLook = document.querySelector('#setting-look');
+const settingBrightness = document.querySelector('#setting-brightness');
+const settingFog = document.querySelector('#setting-fog');
+const settingStatic = document.querySelector('#setting-static');
+const settingMusic = document.querySelector('#setting-music');
+const settingInvert = document.querySelector('#setting-invert');
 const messageEl = document.querySelector('#message');
 const joystickEl = document.querySelector('#joystick');
 const joystickKnob = document.querySelector('#joystick-knob');
@@ -143,6 +159,59 @@ let lanceTV = null;
 let lanceScreen = null;
 let scentUntil = 0;
 let scentTargetId = null;
+let lastJumpScareAt = -999;
+let pausedForSettings = false;
+
+const DEFAULT_SETTINGS = {
+  lookSensitivity: 1.0,
+  brightness: 1.0,
+  fog: 1.0,
+  static: 1.0,
+  music: 0.22,
+  invertY: false
+};
+let settings = {...DEFAULT_SETTINGS};
+try { settings = {...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('gabbaAfterDarkSettings') || '{}')}; } catch (_) {}
+
+function saveSettings(){
+  localStorage.setItem('gabbaAfterDarkSettings', JSON.stringify(settings));
+}
+function applySettings(){
+  settingLook.value=settings.lookSensitivity;
+  settingBrightness.value=settings.brightness;
+  settingFog.value=settings.fog;
+  settingStatic.value=settings.static;
+  settingMusic.value=settings.music;
+  settingInvert.checked=settings.invertY;
+  document.body.style.setProperty('--game-brightness', settings.brightness);
+  document.body.style.setProperty('--static-strength', settings.static);
+  document.body.classList.add('bright-game');
+  scene.fog.density = 0.029 * settings.fog;
+  bgm.volume = settings.music;
+}
+function openSettings(){
+  pausedForSettings = started && !ended;
+  settingsScreen.classList.add('active');
+}
+function closeSettings(){
+  settingsScreen.classList.remove('active');
+  saveSettings();
+}
+settingsButton.addEventListener('click', openSettings);
+ingameSettings.addEventListener('click', openSettings);
+settingsClose.addEventListener('click', closeSettings);
+settingsReset.addEventListener('click', ()=>{ settings={...DEFAULT_SETTINGS}; applySettings(); saveSettings(); });
+for (const el of [settingLook,settingBrightness,settingFog,settingStatic,settingMusic]) {
+  el.addEventListener('input', ()=>{
+    settings.lookSensitivity=Number(settingLook.value);
+    settings.brightness=Number(settingBrightness.value);
+    settings.fog=Number(settingFog.value);
+    settings.static=Number(settingStatic.value);
+    settings.music=Number(settingMusic.value);
+    applySettings(); saveSettings();
+  });
+}
+settingInvert.addEventListener('change', ()=>{ settings.invertY=settingInvert.checked; saveSettings(); });
 
 // ---------- Gabba Land ----------
 scene.background = new THREE.Color(0x151a2c);
@@ -162,17 +231,17 @@ scene.add(camera);
 
 function addGround(x, z, color) {
   const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(25, 25),
+    new THREE.PlaneGeometry(32, 32),
     new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: .08 })
   );
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.set(x, 0, z);
   scene.add(mesh);
 }
-addGround(-12.5, -12.5, 0x5b3b83); // Muno Land
-addGround(-12.5,  12.5, 0x86a83d); // Foofa Land
-addGround( 12.5, -12.5, 0x9a4e2a); // Brobee Land
-addGround( 12.5,  12.5, 0x4b9fc8); // Toodee Land
+addGround(-16, -16, 0x5b3b83); // Muno Land
+addGround(-16,  16, 0x86a83d); // Foofa Land
+addGround( 16, -16, 0x9a4e2a); // Brobee Land
+addGround( 16,  16, 0x4b9fc8); // Toodee Land
 
 const stationFloor = new THREE.Mesh(
   new THREE.CylinderGeometry(6.4, 6.4, .22, 20),
@@ -250,6 +319,43 @@ for (let i = 0; i < 8; i++) {
   tower.position.set(Math.cos(a) * 5.1, .9, Math.sin(a) * 5.1);
   scene.add(tower);
 }
+
+function addBoxObstacle(x,z,w,d,h,color){
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color}));
+  mesh.position.set(x,h/2,z); scene.add(mesh);
+  collisionBoxes.push({minX:x-w/2,maxX:x+w/2,minZ:z-d/2,maxZ:z+d/2});
+  return mesh;
+}
+function addLandmarks(){
+  // Nature/camping inspired treehouse + campfire clearing.
+  addBoxObstacle(-22,17,5.5,4.2,3.6,0x5a3a24);
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(4.0,2.2,4),new THREE.MeshLambertMaterial({color:0x7b4b2d}));
+  roof.position.set(-22,4.7,17); roof.rotation.y=Math.PI/4; scene.add(roof);
+  for(let i=0;i<4;i++){ const leg=new THREE.Mesh(new THREE.CylinderGeometry(.22,.3,3.8,6),trunkMat); leg.position.set(-24+(i%2)*4,1.9,15.5+Math.floor(i/2)*3); scene.add(leg); }
+  const fireRing=new THREE.Mesh(new THREE.TorusGeometry(1.1,.18,6,16),new THREE.MeshLambertMaterial({color:0x5c554d}));
+  fireRing.rotation.x=Math.PI/2; fireRing.position.set(-13,.18,18); scene.add(fireRing);
+  const fire=new THREE.PointLight(0xff7b2c,2.2,8); fire.position.set(-13,1,18); scene.add(fire);
+
+  // Plex robot/space landmark.
+  const ship=new THREE.Group();
+  const hull=new THREE.Mesh(new THREE.SphereGeometry(2.5,12,8),new THREE.MeshLambertMaterial({color:0xd4b329,emissive:0x66520a,emissiveIntensity:.22}));
+  hull.scale.set(1.5,.55,1); hull.position.y=1.4; ship.add(hull);
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(1.25,10,7),new THREE.MeshLambertMaterial({color:0x7fc9dc,transparent:true,opacity:.75}));
+  dome.scale.y=.65; dome.position.y=2.15; ship.add(dome);
+  ship.position.set(21,0,-16); ship.rotation.y=-.4; scene.add(ship);
+  collisionBoxes.push({minX:17.5,maxX:24.5,minZ:-19,maxZ:-13});
+
+  // Toodee pond / crystal island.
+  const pond=new THREE.Mesh(new THREE.CylinderGeometry(4.5,4.5,.12,24),new THREE.MeshLambertMaterial({color:0x277fa8,emissive:0x0f4055,emissiveIntensity:.3}));
+  pond.position.set(20,.06,20); scene.add(pond);
+
+  // Central show-stage speaker blocks.
+  for(const x of [-5.5,5.5]){
+    addBoxObstacle(x,3.5,2.2,2.2,4.2,0x29222f);
+    for(const y of [1.2,2.9]){ const cone=new THREE.Mesh(new THREE.CylinderGeometry(.62,.62,.16,12),new THREE.MeshBasicMaterial({color:0x111111})); cone.rotation.x=Math.PI/2; cone.position.set(x,y,2.35); scene.add(cone); }
+  }
+}
+addLandmarks();
 
 function basicMat(color, dark = false) {
   return new THREE.MeshLambertMaterial({
@@ -449,7 +555,7 @@ function makeEnemy(characterDef, index, options = {}) {
   }
 
   const spawnPoints = [
-    [-22, -18], [22, 18], [-22, 18], [22, -18], [0, 23], [0, -23]
+    [-29, -25], [29, 25], [-29, 25], [29, -25], [0, 30], [0, -30]
   ];
   const [sx, sz] = spawnPoints[index % spawnPoints.length];
   root.position.set(sx, 0, sz);
@@ -605,6 +711,18 @@ function showMessage(text, ms = 2700) {
   messageTimer = setTimeout(() => messageEl.classList.remove('show'), ms);
 }
 
+function powerStinger(id){
+  const patterns={
+    tummy:[[392,.07],[523,.07],[659,.11]],
+    flowers:[[659,.05],[784,.05],[988,.12]],
+    bugs:[[180,.04],[230,.04],[300,.04],[420,.08]],
+    fish:[[440,.06],[392,.06],[330,.11]],
+    space:[[700,.05],[520,.06],[300,.13]]
+  };
+  const seq=patterns[id]||[[520,.08]];
+  let delay=0;
+  seq.forEach(([f,d])=>{ setTimeout(()=>beep(f,d),delay*1000); delay+=d+.025; });
+}
 function beep(frequency = 520, duration = .07) {
   try {
     pickupSoundCtx ||= new (window.AudioContext || window.webkitAudioContext)();
@@ -663,9 +781,9 @@ function makeDizzyFlowerEffect(enemy, now) {
 
 function sendHuntersFarAway() {
   const candidates = [
-    new THREE.Vector3(-23, 0, -23), new THREE.Vector3(23, 0, -23),
-    new THREE.Vector3(-23, 0, 23), new THREE.Vector3(23, 0, 23),
-    new THREE.Vector3(0, 0, -24), new THREE.Vector3(0, 0, 24),
+    new THREE.Vector3(-30, 0, -30), new THREE.Vector3(30, 0, -30),
+    new THREE.Vector3(-30, 0, 30), new THREE.Vector3(30, 0, 30),
+    new THREE.Vector3(0, 0, -31), new THREE.Vector3(0, 0, 31),
   ].sort((a, b) => b.distanceTo(player.position) - a.distanceTo(player.position));
   enemies.forEach((enemy, i) => {
     const target = candidates[i % candidates.length];
@@ -715,7 +833,7 @@ function usePower(id) {
   const power = POWERS.find(x => x.id === id);
   const now = performance.now() / 1000;
   player.usedPowers.add(id);
-  beep(880, .08);
+  powerStinger(id);
 
   if (id === 'tummy') {
     player.health = Math.min(CONFIG.maxHealth, player.health + 1);
@@ -809,8 +927,9 @@ function movePlayer(dt, now) {
 
   const lx = Math.abs(lookStick.state.x) < .14 ? 0 : Math.sign(lookStick.state.x) * ((Math.abs(lookStick.state.x) - .14) / .86);
   const ly = Math.abs(lookStick.state.y) < .14 ? 0 : Math.sign(lookStick.state.y) * ((Math.abs(lookStick.state.y) - .14) / .86);
-  player.yaw -= lx * 1.72 * dt;
-  player.pitch -= ly * 1.35 * dt;
+  player.yaw -= lx * 1.72 * settings.lookSensitivity * dt;
+  const lookY = settings.invertY ? -ly : ly;
+  player.pitch -= lookY * 1.35 * settings.lookSensitivity * dt;
   player.pitch = THREE.MathUtils.clamp(player.pitch, -1.0, 1.0);
 
   const moving = Math.hypot(strafe, forward) > .08;
@@ -927,7 +1046,7 @@ function drawMinimap() {
   const w = minimap.width, h = minimap.height;
   const cx = w/2, cy = h/2;
   const radius = w * .46;
-  const localRange = 15;
+  const localRange = 18;
   const scale = radius / localRange;
 
   ctx.clearRect(0,0,w,h);
@@ -987,6 +1106,39 @@ function drawMinimap() {
   n.style.top=(ny/h*100)+'%';
 }
 
+function enemyBlocked(x,z,r=.7){
+  if(Math.abs(x)>CONFIG.worldHalfSize-r||Math.abs(z)>CONFIG.worldHalfSize-r) return true;
+  return collisionBoxes.some(b=>x>b.minX-r&&x<b.maxX+r&&z>b.minZ-r&&z<b.maxZ+r);
+}
+function triggerJumpScare(enemy, now){
+  if(now-lastJumpScareAt<7 || ended) return;
+  lastJumpScareAt=now;
+  const def=CHARACTERS.find(c=>enemy.userData.id==='hunter-'+c.id);
+  const color=def ? '#'+def.color.toString(16).padStart(6,'0') : '#c7c1df';
+  jumpscareEl.style.setProperty('--jump-color',color);
+  jumpscareName.textContent=(enemy.userData.name||'RUN').toUpperCase();
+  jumpscareEl.classList.remove('active');
+  void jumpscareEl.offsetWidth;
+  jumpscareEl.classList.add('active');
+  setTimeout(()=>jumpscareEl.classList.remove('active'),360);
+  beep(enemy.userData.isGooble?88:115,.12);
+  setTimeout(()=>beep(enemy.userData.isGooble?70:82,.16),80);
+}
+function pickSteer(enemy,dx,dz,step){
+  const options=[
+    [dx,dz],
+    [dx*.55-dz*.84,dz*.55+dx*.84],
+    [dx*.55+dz*.84,dz*.55-dx*.84],
+    [-dz,dx],
+    [dz,-dx]
+  ];
+  for(const [sx,sz] of options){
+    const nx=enemy.position.x+sx*step, nz=enemy.position.z+sz*step;
+    if(!enemyBlocked(nx,nz,.8)) return [sx,sz];
+  }
+  return [0,0];
+}
+
 function updateEnemies(dt, now) {
   let nearest = Infinity;
 
@@ -1011,20 +1163,24 @@ function updateEnemies(dt, now) {
     dz /= dist;
 
     const moveSpeed = enemy.userData.speed;
-    const nx = enemy.position.x + dx * moveSpeed * dt;
-    const nz = enemy.position.z + dz * moveSpeed * dt;
-    if (Math.abs(nx) < 24.5) enemy.position.x = nx;
-    if (Math.abs(nz) < 24.5) enemy.position.z = nz;
+    const step = moveSpeed * dt;
+    const [sx,sz] = pickSteer(enemy,dx,dz,step);
+    const nx = enemy.position.x + sx * step;
+    const nz = enemy.position.z + sz * step;
+    if (!enemyBlocked(nx, enemy.position.z, .8)) enemy.position.x = nx;
+    if (!enemyBlocked(enemy.position.x, nz, .8)) enemy.position.z = nz;
     enemy.lookAt(player.position.x, 1.55, player.position.z);
     enemy.position.y = Math.sin(now * 2.8 + enemy.userData.phase) * .06;
 
+    if (playerDist < 4.0) triggerJumpScare(enemy, now);
     if (playerDist < CONFIG.enemyTouchRadius && now >= player.invulnerableUntil) {
+      triggerJumpScare(enemy, now);
       player.health = Math.max(0, player.health - 1);
       player.invulnerableUntil = now + CONFIG.contactInvulnerability;
       const awayX = pdx / (playerDist || 1);
       const awayZ = pdz / (playerDist || 1);
-      const newX = THREE.MathUtils.clamp(player.position.x + awayX * CONFIG.contactKnockback, -23.5, 23.5);
-      const newZ = THREE.MathUtils.clamp(player.position.z + awayZ * CONFIG.contactKnockback, -23.5, 23.5);
+      const newX = THREE.MathUtils.clamp(player.position.x + awayX * CONFIG.contactKnockback, -30.5, 30.5);
+      const newZ = THREE.MathUtils.clamp(player.position.z + awayZ * CONFIG.contactKnockback, -30.5, 30.5);
       if (!blocked(newX, player.position.z)) player.position.x = newX;
       if (!blocked(player.position.x, newZ)) player.position.z = newZ;
       showMessage(player.health > 0 ? 'OUCH! ' + player.health + ' HEART' + (player.health===1?'':'S') + ' LEFT!' : 'NO HEARTS LEFT!', 1500);
@@ -1042,7 +1198,7 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), .05);
   const now = performance.now() / 1000;
-  if (started && !ended) {
+  if (started && !ended && !settingsScreen.classList.contains('active')) {
     const elapsed = now - gameStartTime;
     movePlayer(dt, now);
     updateCollectibles(now, dt);
@@ -1088,6 +1244,7 @@ function beginGame() {
 startButton.addEventListener('click', beginGame);
 restartButton.addEventListener('click', () => location.reload());
 
+applySettings();
 refreshSprintButton();
 updateHud();
 drawMinimap();
