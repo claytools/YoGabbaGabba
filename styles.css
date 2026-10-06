@@ -110,3 +110,36 @@ body.static-heavy #crt{opacity:var(--crt-opacity,.32)}
 #case-icon{position:absolute;inset:0;display:grid;place-items:center;font-size:15px}
 #briefcase-tray.collecting{opacity:1;transform:translateX(-50%) scale(1.08)}
 body.escape-phase #screen-frame{box-shadow:inset 0 0 32px rgba(255,80,80,.15),0 8px 30px rgba(0,0,0,.4)}
+
+.game-card h1 span{font-size:.52em;letter-spacing:.08em}
+.start-tv{animation:tvDropIn .78s cubic-bezier(.18,.88,.3,1.22) both}
+.game-card .eyebrow{animation:titleFade .55s .45s both}
+.game-card h1{animation:titleRise .6s .52s both}
+.game-card>p,.start-actions,.fan-note{animation:titleFade .55s .68s both}
+@keyframes tvDropIn{
+  0%{transform:translateY(-180px) rotate(-8deg) scale(.82);opacity:0}
+  68%{transform:translateY(8px) rotate(2deg) scale(1.04);opacity:1}
+  84%{transform:translateY(-3px) rotate(-1deg) scale(.99)}
+  100%{transform:translateY(0) rotate(-1deg) scale(1)}
+}
+@keyframes titleFade{from{opacity:0}to{opacity:1}}
+@keyframes titleRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+#victory-stage{display:none;position:relative;width:min(360px,80vw);height:220px;margin-bottom:-8px;pointer-events:none}
+#end-screen.won{background:radial-gradient(circle at 50% 35%,rgba(45,112,76,.95),rgba(3,4,8,.985))}
+#end-screen.won #victory-stage{display:block;animation:victoryStageIn .5s both}
+.victory-tv{position:absolute;left:50%;top:18px;width:150px;height:112px;transform:translateX(-50%);padding:10px;border:6px solid #49364f;border-radius:16px;background:#211727;animation:victoryTVPop .85s cubic-bezier(.2,.9,.25,1.25) both}
+.victory-screen{height:100%;display:grid;place-items:center;border-radius:10px;background:radial-gradient(circle,#85f0a2,#183326 68%);box-shadow:0 0 30px rgba(117,255,151,.48),inset 0 0 18px #000;animation:signalFlash 1.1s steps(3) both}
+.victory-lance{width:36px;height:52px;border-radius:18px 18px 11px 11px;background:#ef7929;position:relative}
+.victory-lance::before{content:"";position:absolute;top:-13px;left:-6px;width:48px;height:15px;border-radius:50%;background:#ef7929}
+.victory-lance span{position:absolute;left:9px;top:10px;width:18px;height:10px;border:2px solid white;border-radius:50%}
+.victory-stars{position:absolute;left:0;right:0;bottom:26px;text-align:center;font-size:28px;letter-spacing:12px;animation:starsBurst 1.2s .2s both}
+.signal-rays{position:absolute;left:50%;top:70px;width:210px;height:210px;transform:translate(-50%,-50%);border-radius:50%;background:repeating-conic-gradient(from 0deg,rgba(132,255,160,.22) 0 7deg,transparent 7deg 18deg);animation:raysSpin 4s linear infinite}
+#end-screen.won .end-card{animation:endCardUp .65s .45s both}
+#end-screen:not(.won) .end-card{animation:titleRise .4s both}
+@keyframes victoryStageIn{from{opacity:0}to{opacity:1}}
+@keyframes victoryTVPop{0%{transform:translateX(-50%) scale(.45) rotate(-8deg);opacity:0}65%{transform:translateX(-50%) scale(1.08) rotate(2deg);opacity:1}100%{transform:translateX(-50%) scale(1) rotate(0)}}
+@keyframes signalFlash{0%{filter:brightness(.25);opacity:.3}35%{filter:brightness(2.2);opacity:1}60%{filter:brightness(.7)}100%{filter:brightness(1.2)}}
+@keyframes starsBurst{0%{opacity:0;transform:scale(.4) translateY(18px)}55%{opacity:1;transform:scale(1.18) translateY(-3px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes raysSpin{to{transform:translate(-50%,-50%) rotate(360deg)}}
+@keyframes endCardUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
