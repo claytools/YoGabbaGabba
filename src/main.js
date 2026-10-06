@@ -112,6 +112,8 @@ const endEyebrow = document.querySelector('#end-eyebrow');
 const endTitle = document.querySelector('#end-title');
 const endCopy = document.querySelector('#end-copy');
 const bugRideEl = document.querySelector('#bug-ride');
+const briefcaseTray = document.querySelector('#briefcase-tray');
+const caseIcon = document.querySelector('#case-icon');
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x020205);
@@ -163,6 +165,8 @@ let scentUntil = 0;
 let scentTargetId = null;
 let lastJumpScareAt = -999;
 let pausedForSettings = false;
+let escapePhase = false;
+let radarSweep = 0;
 let nextPlayerStepAt = 0;
 let nextHunterStepAt = 0;
 
@@ -606,6 +610,13 @@ function makeEnemy(characterDef, index, options = {}) {
     isGooble,
     waypoint: null,
     nextRouteAt: 0,
+    state: isGooble ? 'chase' : 'wander',
+    alertUntil: 0,
+    lastSeenX: sx,
+    lastSeenZ: sz,
+    wanderTarget: new THREE.Vector2(sx,sz),
+    nextWanderAt: 0,
+    wasCloseVisible: false,
   };
   scene.add(root);
   enemies.push(root);
@@ -809,6 +820,14 @@ function updateFootsteps(now,moving,sprinting,nearestEnemy){
   }
 }
 
+function briefcaseCollect(color){
+  caseIcon.textContent='★';
+  caseIcon.style.color='#'+color.toString(16).padStart(6,'0');
+  briefcaseTray.classList.remove('collecting');
+  void briefcaseTray.offsetWidth;
+  briefcaseTray.classList.add('collecting');
+  setTimeout(()=>briefcaseTray.classList.remove('collecting'),700);
+}
 function collect(item) {
   if (player.collected.has(item.userData.id)) return;
   player.collected.add(item.userData.id);
@@ -816,6 +835,7 @@ function collect(item) {
   beep(item.userData.type === 'character' ? 220 : 720, .11);
 
   if (item.userData.type === 'character') {
+    briefcaseCollect(item.userData.color);
     const def = CHARACTERS.find(c => c.id === item.userData.id);
     makeEnemy(def, enemies.length);
   } else {
@@ -826,8 +846,20 @@ function collect(item) {
 
   if (player.collected.size >= CONFIG.lanceUnlockCount && !lanceUnlocked) {
     lanceUnlocked = true;
-    showMessage('ALL 10 FOUND! GET BACK TO DJ LANCE!', 4800);
+    escapePhase = true;
+    document.body.classList.add('escape-phase');
+    showMessage('ALL 10 FOUND — GET BACK TO DJ LANCE!', 5200);
     beep(1040, .28);
+    if(!goobleSpawned){
+      goobleSpawned=true;
+      makeEnemy({id:'gooble',name:'Gooble',color:0x5c58a3},enemies.length,{gooble:true});
+    }
+    enemies.forEach(e=>{ e.userData.state='chase'; e.userData.alertUntil=Infinity; });
+  } else {
+    const count=player.collected.size;
+    if(count===3) showMessage('THE WOODS FEEL DIFFERENT...',2600);
+    if(count===6) showMessage('SOMETHING IS GETTING CLOSER.',2600);
+    if(count===8) showMessage('DON\'T STOP MOVING.',2600);
   }
   updateHud();
 }
@@ -967,7 +999,7 @@ function finish(won) {
   ended = true;
   hudEl.classList.add('hidden');
   endScreen.classList.add('active');
-  document.body.classList.remove('danger', 'static-heavy');
+  document.body.classList.remove('danger', 'static-heavy', 'escape-phase');
   if (won) {
     endEyebrow.textContent = 'SUPER MUSIC FRIENDS SHOW SIGNAL RESTORED';
     endTitle.textContent = 'DJ LANCE IS OUT';
@@ -1031,7 +1063,11 @@ function movePlayer(dt, now) {
   const nz = player.position.z + dz;
   if (!blocked(player.position.x, nz)) player.position.z = nz;
 
+  const bobRate = sprinting ? 13.0 : 9.0;
+  const bobAmp = moving ? (sprinting ? .075 : .045) : 0;
   camera.position.copy(player.position);
+  camera.position.y += Math.sin(now * bobRate) * bobAmp;
+  camera.position.x += Math.sin(now * bobRate * .5) * bobAmp * .18;
   camera.rotation.order = 'YXZ';
   camera.rotation.y = player.yaw;
   camera.rotation.x = player.pitch;
@@ -1114,81 +1150,45 @@ function spawnGoobleIfNeeded(elapsed) {
   }
 }
 
-function drawMinimap() {
-  const ctx = minimapCtx;
-  const w = minimap.width, h = minimap.height;
-  const cx = w/2, cy = h/2;
-  const radius = w * .46;
-  const localRange = 10.5;
-  const scale = radius / localRange;
-
+function drawMinimap(now=performance.now()/1000) {
+  const ctx=minimapCtx,w=minimap.width,h=minimap.height,cx=w/2,cy=h/2,r=w*.45;
   ctx.clearRect(0,0,w,h);
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx,cy,radius,0,Math.PI*2);
-  ctx.clip();
-  ctx.fillStyle='rgba(8,12,20,.78)';
-  ctx.fillRect(0,0,w,h);
-
   ctx.translate(cx,cy);
-  ctx.rotate(player.yaw);
 
-  const local = (x,z) => ({ x:(x-player.position.x)*scale, y:(z-player.position.z)*scale });
+  ctx.fillStyle='rgba(5,9,12,.88)';
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(115,255,170,.2)';ctx.lineWidth=1;
+  for(const rr of [r*.33,r*.66,r]){ctx.beginPath();ctx.arc(0,0,rr,0,Math.PI*2);ctx.stroke();}
+  ctx.beginPath();ctx.moveTo(-r,0);ctx.lineTo(r,0);ctx.moveTo(0,-r);ctx.lineTo(0,r);ctx.stroke();
 
-  ctx.strokeStyle='rgba(255,255,255,.22)';
-  ctx.lineWidth=3;
-  for(const b of collisionBoxes){
-    const x=(b.minX+b.maxX)/2, z=(b.minZ+b.maxZ)/2;
-    const ww=b.maxX-b.minX, dd=b.maxZ-b.minZ;
-    const p=local(x,z);
-    if(Math.hypot(p.x,p.y)>radius+50) continue;
-    ctx.strokeRect(p.x-ww*scale/2,p.y-dd*scale/2,ww*scale,dd*scale);
-  }
+  radarSweep=(now*.95)%(Math.PI*2);
+  const sweepX=Math.sin(radarSweep)*r,sweepY=-Math.cos(radarSweep)*r;
+  const grad=ctx.createLinearGradient(0,0,sweepX,sweepY);
+  grad.addColorStop(0,'rgba(110,255,160,.06)');grad.addColorStop(1,'rgba(110,255,160,.8)');
+  ctx.strokeStyle=grad;ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(sweepX,sweepY);ctx.stroke();
 
-  for(const item of collectibles){
-    if(!item.parent) continue;
-    const p=local(item.position.x,item.position.z);
-    if(Math.hypot(p.x,p.y)>radius) continue;
-    if(item.userData.type==='character'){
-      ctx.fillStyle='#'+item.userData.color.toString(16).padStart(6,'0');
-      ctx.beginPath();ctx.arc(p.x,p.y,7,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=1.5;ctx.stroke();
-    } else {
-      ctx.fillStyle='#'+item.userData.color.toString(16).padStart(6,'0');
-      ctx.font='bold 16px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText('♪',p.x,p.y+1);
-    }
-  }
-
+  const range=18;
   for(const enemy of enemies){
-    const p=local(enemy.position.x,enemy.position.z);
-    if(Math.hypot(p.x,p.y)>radius) continue;
-    ctx.fillStyle=enemy.userData.isGooble?'#d9cfff':'#ff5360';
-    ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fill();
+    const dx=enemy.position.x-player.position.x,dz=enemy.position.z-player.position.z;
+    const dist=Math.hypot(dx,dz);
+    if(dist>range) continue;
+    const worldAngle=Math.atan2(dx,-dz);
+    const rel=worldAngle-player.yaw;
+    const enemyAngle=(worldAngle+Math.PI*2)%(Math.PI*2);
+    let diff=Math.abs(enemyAngle-radarSweep);diff=Math.min(diff,Math.PI*2-diff);
+    if(diff>.42) continue;
+    const rr=(dist/range)*r;
+    const x=Math.sin(rel)*rr,y=-Math.cos(rel)*rr;
+    ctx.fillStyle='rgba(255,53,68,.95)';
+    ctx.beginPath();ctx.arc(x,y,5.5,0,Math.PI*2);ctx.fill();
   }
 
-  if(lanceTV){
-    const p=local(lanceTV.position.x,lanceTV.position.z);
-    if(Math.hypot(p.x,p.y)<=radius){ctx.fillStyle=lanceUnlocked?'#79ff9d':'#f5a451';ctx.fillRect(p.x-4,p.y-4,8,8);}
-  }
-
+  ctx.fillStyle='#8df7ff';ctx.beginPath();ctx.arc(0,0,4.5,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.42)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();
   ctx.restore();
-
-  ctx.fillStyle='#41e6ff';
-  ctx.beginPath();ctx.arc(cx,cy,8,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle='#ffffff';ctx.lineWidth=2;ctx.stroke();
-  ctx.fillStyle='#ffffff';
-  ctx.beginPath();ctx.moveTo(cx,cy-12);ctx.lineTo(cx+5,cy-3);ctx.lineTo(cx-5,cy-3);ctx.closePath();ctx.fill();
-
-  ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=2;
-  ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.stroke();
-
-  const northAngle = -player.yaw;
-  const nx = cx + Math.sin(northAngle) * (radius-10);
-  const ny = cy - Math.cos(northAngle) * (radius-10);
-  const n=document.querySelector('#compass-n');
-  n.style.left=(nx/w*100)+'%';
-  n.style.top=(ny/h*100)+'%';
 }
 
 function enemyBlocked(x,z,r=.7){
@@ -1257,68 +1257,139 @@ function pickSteer(enemy,dx,dz,step,now){
   return [0,0];
 }
 
+function canSeePlayer(enemy){
+  return !collisionBoxes.some(b=>segmentHitsBox(enemy.position.x,enemy.position.z,player.position.x,player.position.z,b,.25));
+}
+function setWanderTarget(enemy,now){
+  const radius=8+Math.random()*9;
+  const a=Math.random()*Math.PI*2;
+  const x=THREE.MathUtils.clamp(enemy.position.x+Math.cos(a)*radius,-30,30);
+  const z=THREE.MathUtils.clamp(enemy.position.z+Math.sin(a)*radius,-30,30);
+  enemy.userData.wanderTarget.set(x,z);
+  enemy.userData.nextWanderAt=now+3+Math.random()*4;
+}
+function updateEnemyState(enemy,dist,now){
+  const id=enemy.userData.id;
+  const progress=player.collected.size/CONFIG.lanceUnlockCount;
+  const sees=canSeePlayer(enemy);
+
+  if(escapePhase || enemy.userData.isGooble){
+    enemy.userData.state='chase';
+    enemy.userData.alertUntil=Infinity;
+    return;
+  }
+
+  let notice=8+progress*6;
+  if(id==='hunter-foofa') notice+=2.5;
+  if(id==='hunter-plex') notice+=1.5;
+  if(player.isSprinting) notice+=4;
+
+  if(sees && dist<notice){
+    enemy.userData.state='chase';
+    enemy.userData.alertUntil=now+4+progress*4;
+    enemy.userData.lastSeenX=player.position.x;
+    enemy.userData.lastSeenZ=player.position.z;
+  } else if(enemy.userData.state==='chase' && now>enemy.userData.alertUntil){
+    enemy.userData.state='search';
+    enemy.userData.searchUntil=now+5;
+  } else if(enemy.userData.state==='search' && now>(enemy.userData.searchUntil||0)){
+    enemy.userData.state='wander';
+  }
+
+  if(id==='hunter-plex' && enemy.userData.state==='search' && dist>10 && Math.random()<.0015){
+    const a=Math.random()*Math.PI*2;
+    const rr=11+Math.random()*4;
+    const tx=THREE.MathUtils.clamp(player.position.x+Math.cos(a)*rr,-29,29);
+    const tz=THREE.MathUtils.clamp(player.position.z+Math.sin(a)*rr,-29,29);
+    if(!enemyBlocked(tx,tz,.8)) enemy.position.set(tx,0,tz);
+  }
+}
 function updateEnemies(dt, now) {
-  let nearest = Infinity;
+  let nearest=Infinity;
+  let nearestVisible=Infinity;
+  const progress=player.collected.size/CONFIG.lanceUnlockCount;
 
-  for (const enemy of enemies) {
-    const ex = enemy.position.x;
-    const ez = enemy.position.z;
-    const pdx = player.position.x - ex;
-    const pdz = player.position.z - ez;
-    const playerDist = Math.hypot(pdx, pdz);
-    nearest = Math.min(nearest, playerDist);
+  for(const enemy of enemies){
+    const ex=enemy.position.x,ez=enemy.position.z;
+    let pdx=player.position.x-ex,pdz=player.position.z-ez;
+    const playerDist=Math.hypot(pdx,pdz);
+    nearest=Math.min(nearest,playerDist);
+    if(canSeePlayer(enemy)) nearestVisible=Math.min(nearestVisible,playerDist);
 
-    if (enemy.userData.stunnedUntil > now) {
-      enemy.rotation.z = Math.sin(now * 18) * .08;
-      continue;
+    if(enemy.userData.stunnedUntil>now){ enemy.rotation.z=Math.sin(now*18)*.08; continue; }
+    enemy.rotation.z=0;
+    updateEnemyState(enemy,playerDist,now);
+
+    let tx=player.position.x,tz=player.position.z;
+    if(enemy.userData.state==='wander'){
+      if(now>=enemy.userData.nextWanderAt||Math.hypot(enemy.userData.wanderTarget.x-ex,enemy.userData.wanderTarget.y-ez)<1.4) setWanderTarget(enemy,now);
+      tx=enemy.userData.wanderTarget.x;tz=enemy.userData.wanderTarget.y;
+    } else if(enemy.userData.state==='search'){
+      tx=enemy.userData.lastSeenX;tz=enemy.userData.lastSeenZ;
+    } else {
+      if(enemy.userData.id==='hunter-toodee' && player.moving){
+        const lead=1.5+progress*1.3;
+        tx=player.position.x-Math.sin(player.yaw)*lead;
+        tz=player.position.z-Math.cos(player.yaw)*lead;
+      }
     }
-    enemy.rotation.z = 0;
 
-    let dx = pdx;
-    let dz = pdz;
-    const dist = Math.hypot(dx, dz) || 1;
-    dx /= dist;
-    dz /= dist;
+    let dx=tx-ex,dz=tz-ez;
+    const dist=Math.hypot(dx,dz)||1;dx/=dist;dz/=dist;
 
-    const moveSpeed = enemy.userData.speed;
-    const step = moveSpeed * dt;
-    const [sx,sz] = pickSteer(enemy,dx,dz,step,now);
-    const nx = enemy.position.x + sx * step;
-    const nz = enemy.position.z + sz * step;
-    if (!enemyBlocked(nx, enemy.position.z, .8)) enemy.position.x = nx;
-    if (!enemyBlocked(enemy.position.x, nz, .8)) enemy.position.z = nz;
-    enemy.lookAt(player.position.x, 1.55, player.position.z);
-    enemy.position.y = Math.sin(now * 2.8 + enemy.userData.phase) * .06;
+    let personality=1;
+    if(enemy.userData.id==='hunter-brobee') personality=.92;
+    if(enemy.userData.id==='hunter-muno') personality=1.06;
+    if(enemy.userData.id==='hunter-foofa') personality=.98;
+    if(enemy.userData.id==='hunter-toodee') personality=1.03;
+    if(enemy.userData.id==='hunter-plex') personality=1.0;
 
-    if (playerDist < 4.0) triggerJumpScare(enemy, now);
-    if (playerDist < CONFIG.enemyTouchRadius && now >= player.invulnerableUntil) {
-      triggerJumpScare(enemy, now);
-      player.health = Math.max(0, player.health - 1);
-      player.invulnerableUntil = now + CONFIG.contactInvulnerability;
-      const awayX = pdx / (playerDist || 1);
-      const awayZ = pdz / (playerDist || 1);
-      const newX = THREE.MathUtils.clamp(player.position.x + awayX * CONFIG.contactKnockback, -30.5, 30.5);
-      const newZ = THREE.MathUtils.clamp(player.position.z + awayZ * CONFIG.contactKnockback, -30.5, 30.5);
-      if (!blocked(newX, player.position.z)) player.position.x = newX;
-      if (!blocked(player.position.x, newZ)) player.position.z = newZ;
-      showMessage(player.health > 0 ? 'OUCH! ' + player.health + ' HEART' + (player.health===1?'':'S') + ' LEFT!' : 'NO HEARTS LEFT!', 1500);
+    const stateMult=enemy.userData.state==='chase'?1:(enemy.userData.state==='search'?.72:.48);
+    const difficulty=1+progress*.24+(escapePhase?.2:0);
+    const moveSpeed=enemy.userData.speed*personality*stateMult*difficulty;
+    const step=moveSpeed*dt;
+
+    let sx=dx,sz=dz;
+    if(enemy.userData.state!=='wander'){
+      [sx,sz]=pickSteer(enemy,dx,dz,step,now);
+    } else if(enemyBlocked(ex+sx*step,ez+sz*step,.8)){
+      setWanderTarget(enemy,now);sx=0;sz=0;
+    }
+
+    const nx=enemy.position.x+sx*step,nz=enemy.position.z+sz*step;
+    if(!enemyBlocked(nx,enemy.position.z,.8)) enemy.position.x=nx;
+    if(!enemyBlocked(enemy.position.x,nz,.8)) enemy.position.z=nz;
+    enemy.lookAt(tx,1.55,tz);
+    enemy.position.y=Math.sin(now*2.8+enemy.userData.phase)*.06;
+
+    const closeAndVisible=playerDist<3.2&&canSeePlayer(enemy);
+    if(closeAndVisible && enemy.userData.wasCloseVisible===false) triggerJumpScare(enemy,now);
+    enemy.userData.wasCloseVisible=closeAndVisible;
+
+    if(playerDist<CONFIG.enemyTouchRadius&&now>=player.invulnerableUntil){
+      triggerJumpScare(enemy,now);
+      player.health=Math.max(0,player.health-1);
+      player.invulnerableUntil=now+CONFIG.contactInvulnerability;
+      const awayX=pdx/(playerDist||1),awayZ=pdz/(playerDist||1);
+      const newX=THREE.MathUtils.clamp(player.position.x+awayX*CONFIG.contactKnockback,-30.5,30.5);
+      const newZ=THREE.MathUtils.clamp(player.position.z+awayZ*CONFIG.contactKnockback,-30.5,30.5);
+      if(!blocked(newX,player.position.z)) player.position.x=newX;
+      if(!blocked(player.position.x,newZ)) player.position.z=newZ;
+      showMessage(player.health>0?'OUCH! '+player.health+' HEART'+(player.health===1?'':'S')+' LEFT!':'NO HEARTS LEFT!',1500);
       beep(115,.22);
-      if (player.health <= 0) finish(false);
+      if(player.health<=0) finish(false);
     }
   }
 
-  const close = nearest < 6.2 && !ended;
-  const staticRange=15;
-  const proximity=nearest<staticRange ? THREE.MathUtils.clamp(1-nearest/staticRange,0,1) : 0;
+  const close=nearest<6.2&&!ended;
+  const staticRange=17;
+  const proximity=nearest<staticRange?THREE.MathUtils.clamp(1-nearest/staticRange,0,1):0;
   const eased=proximity*proximity;
-  const base=.045;
-  const crtOpacity=base + eased * .72 * settings.static;
-  const noiseOpacity=.04 + eased * .52 * settings.static;
-  screenFrame.style.setProperty('--crt-opacity',crtOpacity.toFixed(3));
-  screenFrame.style.setProperty('--noise-opacity',noiseOpacity.toFixed(3));
-  screenFrame.style.setProperty('--game-contrast',(1+eased*.18).toFixed(2));
-  document.body.classList.toggle('danger', close);
-  document.body.classList.toggle('static-heavy', proximity>.08 && !ended);
+  screenFrame.style.setProperty('--crt-opacity',(.045+eased*.82*settings.static).toFixed(3));
+  screenFrame.style.setProperty('--noise-opacity',(.04+eased*.68*settings.static).toFixed(3));
+  screenFrame.style.setProperty('--game-contrast',(1+eased*.22).toFixed(2));
+  document.body.classList.toggle('danger',close);
+  document.body.classList.toggle('static-heavy',proximity>.05&&!ended);
   updateFootsteps(now,player.moving,player.isSprinting,nearest);
 }
 
@@ -1336,7 +1407,7 @@ function animate() {
     spawnGoobleIfNeeded(elapsed);
     updateEnemies(dt, now);
     updateHud();
-    drawMinimap();
+    drawMinimap(now);
   }
   renderer.render(scene, camera);
 }
