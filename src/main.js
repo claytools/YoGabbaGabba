@@ -1,10 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js';
 
-// ============================================================
-// GABBA AFTER DARK — mobile-first survival prototype
-// Procedural stand-ins only. No show art, models, music, or audio shipped.
-// ============================================================
-
+// GABBA AFTER DARK
 const CONFIG = {
   worldHalfSize: 32,
   playerHeight: 1.65,
@@ -93,6 +89,7 @@ const settingLook = document.querySelector('#setting-look');
 const settingBrightness = document.querySelector('#setting-brightness');
 const settingFog = document.querySelector('#setting-fog');
 const settingStatic = document.querySelector('#setting-static');
+const settingMusicEnabled = document.querySelector('#setting-music-enabled');
 const settingMusic = document.querySelector('#setting-music');
 const settingInvert = document.querySelector('#setting-invert');
 const messageEl = document.querySelector('#message');
@@ -101,8 +98,6 @@ const joystickKnob = document.querySelector('#joystick-knob');
 const lookstickEl = document.querySelector('#lookstick');
 const lookstickKnob = document.querySelector('#lookstick-knob');
 const sprintEl = document.querySelector('#sprint');
-const fullscreenToggle = document.querySelector('#fullscreen-toggle');
-const musicToggle = document.querySelector('#music-toggle');
 const bgm = document.querySelector('#bgm');
 const staminaFill = document.querySelector('#stamina-fill');
 const minimap = document.querySelector('#minimap');
@@ -169,12 +164,14 @@ let escapePhase = false;
 let radarSweep = 0;
 let nextPlayerStepAt = 0;
 let nextHunterStepAt = 0;
+let nextAmbientAt = 0;
 
 const DEFAULT_SETTINGS = {
   lookSensitivity: 1.0,
   brightness: 0.92,
   fog: 1.0,
   static: 1.0,
+  musicEnabled: true,
   music: 0.22,
   invertY: false
 };
@@ -189,6 +186,7 @@ function applySettings(){
   settingBrightness.value=settings.brightness;
   settingFog.value=settings.fog;
   settingStatic.value=settings.static;
+  settingMusicEnabled.checked=settings.musicEnabled;
   settingMusic.value=settings.music;
   settingInvert.checked=settings.invertY;
   document.body.style.setProperty('--game-brightness', settings.brightness);
@@ -196,6 +194,10 @@ function applySettings(){
   document.body.classList.add('bright-game');
   scene.fog.density = 0.034 * settings.fog;
   bgm.volume = settings.music;
+  if(started){
+    if(settings.musicEnabled){ bgm.play().catch(()=>{}); }
+    else { bgm.pause(); }
+  }
 }
 function openSettings(){
   pausedForSettings = started && !ended;
@@ -219,6 +221,10 @@ for (const el of [settingLook,settingBrightness,settingFog,settingStatic,setting
     applySettings(); saveSettings();
   });
 }
+settingMusicEnabled.addEventListener('change', ()=>{
+  settings.musicEnabled=settingMusicEnabled.checked;
+  applySettings(); saveSettings();
+});
 settingInvert.addEventListener('change', ()=>{ settings.invertY=settingInvert.checked; saveSettings(); });
 
 // ---------- Gabba Land ----------
@@ -692,39 +698,6 @@ sprintEl.addEventListener('pointerdown', e => {
   refreshSprintButton();
 });
 
-let musicOn = false;
-async function setMusic(on) {
-  musicOn = on;
-  musicToggle.classList.toggle('active', on);
-  musicToggle.textContent = on ? 'MUSIC ON' : 'MUSIC';
-  if (on) {
-    bgm.volume = settings.music;
-    try { await bgm.play(); } catch (_) { musicOn = false; musicToggle.classList.remove('active'); musicToggle.textContent = 'MUSIC'; }
-  } else {
-    bgm.pause();
-  }
-}
-musicToggle.addEventListener('click', () => setMusic(!musicOn));
-
-fullscreenToggle.addEventListener('click', async () => {
-  try {
-    if (!document.fullscreenElement && appShell.requestFullscreen) {
-      await appShell.requestFullscreen({ navigationUI: 'hide' });
-    } else if (document.fullscreenElement && document.exitFullscreen) {
-      await document.exitFullscreen();
-    } else {
-      document.body.classList.toggle('pseudo-fullscreen');
-    }
-  } catch (_) {
-    document.body.classList.toggle('pseudo-fullscreen');
-  }
-  setTimeout(resize, 120);
-});
-document.addEventListener('fullscreenchange', () => {
-  fullscreenToggle.textContent = document.fullscreenElement ? 'EXIT FULL' : 'FULL';
-  setTimeout(resize, 120);
-});
-
 let lookPointer = null;
 let lastLookX = 0;
 let lastLookY = 0;
@@ -818,6 +791,25 @@ function updateFootsteps(now,moving,sprinting,nearestEnemy){
     footstep('hunter',.55+intensity*.9);
     nextHunterStepAt=now+THREE.MathUtils.lerp(.72,.34,intensity);
   }
+}
+
+function creepyAmbience(now,nearest){
+  if(!started||ended||now<nextAmbientAt) return;
+  const threat=Number.isFinite(nearest)?THREE.MathUtils.clamp(1-nearest/22,0,1):0;
+  nextAmbientAt=now+THREE.MathUtils.lerp(8,3.2,threat)+Math.random()*3;
+  try{
+    pickupSoundCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const ctx=pickupSoundCtx;
+    const osc=ctx.createOscillator(), gain=ctx.createGain(), filter=ctx.createBiquadFilter();
+    osc.type=Math.random()>.45?'sine':'triangle';
+    osc.frequency.value=42+Math.random()*38+(threat*15);
+    filter.type='lowpass'; filter.frequency.value=130+threat*120;
+    gain.gain.setValueAtTime(.0001,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.008+threat*.018,ctx.currentTime+.08);
+    gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.65+threat*.45);
+    osc.connect(filter).connect(gain).connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime+1.2);
+  }catch(_){}
 }
 
 function briefcaseCollect(color){
@@ -1359,8 +1351,13 @@ function updateEnemies(dt, now) {
     const nx=enemy.position.x+sx*step,nz=enemy.position.z+sz*step;
     if(!enemyBlocked(nx,enemy.position.z,.8)) enemy.position.x=nx;
     if(!enemyBlocked(enemy.position.x,nz,.8)) enemy.position.z=nz;
-    enemy.lookAt(tx,1.55,tz);
-    enemy.position.y=Math.sin(now*2.8+enemy.userData.phase)*.06;
+    const faceDx=player.position.x-enemy.position.x;
+    const faceDz=player.position.z-enemy.position.z;
+    enemy.rotation.y=Math.atan2(-faceDx,-faceDz);
+    const chaseLean=enemy.userData.state==='chase' ? -.13 : -.045;
+    enemy.rotation.x=chaseLean+Math.sin(now*4.6+enemy.userData.phase)*.018;
+    enemy.rotation.z=Math.sin(now*5.3+enemy.userData.phase)*.025;
+    enemy.position.y=Math.sin(now*5.0+enemy.userData.phase)*.055;
 
     const closeAndVisible=playerDist<3.2&&canSeePlayer(enemy);
     if(closeAndVisible && enemy.userData.wasCloseVisible===false) triggerJumpScare(enemy,now);
@@ -1370,11 +1367,23 @@ function updateEnemies(dt, now) {
       triggerJumpScare(enemy,now);
       player.health=Math.max(0,player.health-1);
       player.invulnerableUntil=now+CONFIG.contactInvulnerability;
-      const awayX=pdx/(playerDist||1),awayZ=pdz/(playerDist||1);
-      const newX=THREE.MathUtils.clamp(player.position.x+awayX*CONFIG.contactKnockback,-30.5,30.5);
-      const newZ=THREE.MathUtils.clamp(player.position.z+awayZ*CONFIG.contactKnockback,-30.5,30.5);
-      if(!blocked(newX,player.position.z)) player.position.x=newX;
-      if(!blocked(player.position.x,newZ)) player.position.z=newZ;
+      const angle=Math.random()*Math.PI*2;
+      const knockDist=14+Math.random()*8;
+      let newX=THREE.MathUtils.clamp(player.position.x+Math.cos(angle)*knockDist,-29.5,29.5);
+      let newZ=THREE.MathUtils.clamp(player.position.z+Math.sin(angle)*knockDist,-29.5,29.5);
+      for(let tries=0;tries<8&&enemyBlocked(newX,newZ,.9);tries++){
+        const a=Math.random()*Math.PI*2;
+        const d=12+Math.random()*12;
+        newX=THREE.MathUtils.clamp(player.position.x+Math.cos(a)*d,-29.5,29.5);
+        newZ=THREE.MathUtils.clamp(player.position.z+Math.sin(a)*d,-29.5,29.5);
+      }
+      if(!enemyBlocked(newX,newZ,.9)){
+        enemy.position.set(newX,0,newZ);
+        enemy.userData.state='search';
+        enemy.userData.lastSeenX=player.position.x;
+        enemy.userData.lastSeenZ=player.position.z;
+        enemy.userData.searchUntil=now+2.5;
+      }
       showMessage(player.health>0?'OUCH! '+player.health+' HEART'+(player.health===1?'':'S')+' LEFT!':'NO HEARTS LEFT!',1500);
       beep(115,.22);
       if(player.health<=0) finish(false);
@@ -1382,15 +1391,16 @@ function updateEnemies(dt, now) {
   }
 
   const close=nearest<6.2&&!ended;
-  const staticRange=17;
+  const staticRange=20;
   const proximity=nearest<staticRange?THREE.MathUtils.clamp(1-nearest/staticRange,0,1):0;
-  const eased=proximity*proximity;
-  screenFrame.style.setProperty('--crt-opacity',(.045+eased*.82*settings.static).toFixed(3));
-  screenFrame.style.setProperty('--noise-opacity',(.04+eased*.68*settings.static).toFixed(3));
+  const eased=Math.pow(proximity,1.55);
+  screenFrame.style.setProperty('--crt-opacity',(.055+eased*.94*settings.static).toFixed(3));
+  screenFrame.style.setProperty('--noise-opacity',(.055+eased*.82*settings.static).toFixed(3));
   screenFrame.style.setProperty('--game-contrast',(1+eased*.22).toFixed(2));
   document.body.classList.toggle('danger',close);
   document.body.classList.toggle('static-heavy',proximity>.05&&!ended);
   updateFootsteps(now,player.moving,player.isSprinting,nearest);
+  creepyAmbience(now,nearest);
 }
 
 function animate() {
@@ -1437,7 +1447,10 @@ function beginGame() {
   hudEl.classList.remove('hidden');
   showMessage('DJ LANCE IS TRAPPED! FIND 5 FRIENDS + 5 SONGS.', 4200);
   pickupSoundCtx?.resume?.();
-  setMusic(true);
+  if(settings.musicEnabled){
+    bgm.volume=settings.music;
+    bgm.play().catch(()=>{});
+  }
 }
 
 startButton.addEventListener('click', beginGame);
