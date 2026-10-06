@@ -18,17 +18,13 @@
 
       <div id="hud" class="hidden">
         <div id="topbar">
-          <div class="panel stat"><span class="label">GOAL</span><span id="objective">FIND EVERYONE</span></div>
-          <div class="panel stat"><span class="label">FOUND</span><span id="count">0 / 10</span></div>
-          <div class="panel stat mini"><span class="label">TIME</span><span id="timer">0:00</span></div>
-          <div class="panel health-panel">
-            <div class="meter-row"><span class="label">HEALTH</span><div class="meter-track"><div id="health-fill"></div></div></div>
-            <div class="meter-row"><span class="label">STAMINA</span><div class="meter-track"><div id="stamina-fill"></div></div></div>
-          </div>
+          <div class="panel found-panel"><span class="label">FOUND</span><span id="count">0 / 10</span></div>
+          <div class="panel heart-panel"><span class="label">HEALTH</span><div id="hearts" aria-label="health">♥ ♥ ♥</div></div>
         </div>
 
         <div id="minimap-wrap" class="panel">
-          <canvas id="minimap" width="180" height="180" aria-label="mini map"></canvas>
+          <canvas id="minimap" width="220" height="220" aria-label="local mini map"></canvas>
+          <div id="compass-n">N</div>
         </div>
 
         <div id="message" aria-live="polite"></div>
@@ -46,7 +42,10 @@
         </div>
 
         <div id="center-controls">
-          <button id="sprint" class="round-button action-button" type="button">RUN</button>
+          <div id="run-cluster">
+            <div id="stamina-rail"><div id="stamina-fill"></div></div>
+            <button id="sprint" class="round-button action-button" type="button">RUN</button>
+          </div>
           <button id="fullscreen-toggle" class="utility-button" type="button">FULL</button>
           <button id="music-toggle" class="utility-button" type="button">MUSIC</button>
         </div>
@@ -62,11 +61,17 @@
   </main>
 
   <div id="start-screen" class="screen active">
-    <div class="card">
+    <div class="card game-card">
+      <div class="start-tv">
+        <div class="start-screen-glow">
+          <div class="lance-mini"><span></span></div>
+        </div>
+      </div>
+      <p class="eyebrow">TONIGHT IN GABBA LAND</p>
       <h1>GABBA<br/>AFTER DARK</h1>
-      <p><strong>DJ LANCE IS TRAPPED!</strong></p>
-      <p>Find the 5 Gabba characters and their songs to save him!</p>
-      <button id="start-button" class="primary" type="button">PLAY</button>
+      <p><strong>DJ LANCE IS TRAPPED.</strong></p>
+      <p>Find 5 friends. Find 5 songs. Get back to the TV.</p>
+      <button id="start-button" class="primary" type="button">START</button>
     </div>
   </div>
 
