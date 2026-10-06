@@ -12,13 +12,18 @@ Get all 10, then make it back to DJ Lance.
 
 Open the GitHub Pages site on your phone.
 
-- Left thumb: move
-- Drag right side: look
+- Left stick: move
+- Right stick: look
 - RUN: sprint
-- Song buttons: powers
+- Song buttons: one-use powers
+- Gear: settings
 
-Landscape works best.
+## Fan project notice
+
+This is a fan-made, noncommercial project inspired by *Yo Gabba Gabba!* and survival-horror games. All rights to *Yo Gabba Gabba!* characters, names, music, and related properties belong to their respective owners. This project is for personal/fan use only and is not affiliated with or endorsed by the rights holders. If requested by the rights holders, this project will be modified or removed.
 
 ## Music
 
-Placeholder music: **8-Bit Curious Theme** by emanresU — CC0.
+Placeholder background music: **8-Bit Curious Theme** by emanresU — CC0.
+
+The character power sounds are original synthesized game stingers and do not use recordings from the show.
