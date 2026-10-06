@@ -184,7 +184,7 @@ function applySettings(){
   settingMusic.value=settings.music;
   settingInvert.checked=settings.invertY;
   document.body.style.setProperty('--game-brightness', settings.brightness);
-  document.body.style.setProperty('--static-strength', settings.static);
+  document.body.style.setProperty('--static-opacity', String(.25 * settings.static));
   document.body.classList.add('bright-game');
   scene.fog.density = 0.029 * settings.fog;
   bgm.volume = settings.music;
@@ -1064,9 +1064,11 @@ function drawMinimap() {
 
   ctx.strokeStyle='rgba(255,255,255,.22)';
   ctx.lineWidth=3;
-  for(const [x,z,ww,dd] of WALLS){
+  for(const b of collisionBoxes){
+    const x=(b.minX+b.maxX)/2, z=(b.minZ+b.maxZ)/2;
+    const ww=b.maxX-b.minX, dd=b.maxZ-b.minZ;
     const p=local(x,z);
-    if(Math.hypot(p.x,p.y)>radius+40) continue;
+    if(Math.hypot(p.x,p.y)>radius+50) continue;
     ctx.strokeRect(p.x-ww*scale/2,p.y-dd*scale/2,ww*scale,dd*scale);
   }
 
@@ -1115,6 +1117,7 @@ function triggerJumpScare(enemy, now){
   lastJumpScareAt=now;
   const def=CHARACTERS.find(c=>enemy.userData.id==='hunter-'+c.id);
   const color=def ? '#'+def.color.toString(16).padStart(6,'0') : '#c7c1df';
+  jumpscareEl.dataset.character=def?.id || 'gooble';
   jumpscareEl.style.setProperty('--jump-color',color);
   jumpscareName.textContent=(enemy.userData.name||'RUN').toUpperCase();
   jumpscareEl.classList.remove('active');
