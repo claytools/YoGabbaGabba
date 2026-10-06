@@ -9,17 +9,18 @@ const CONFIG = {
   worldHalfSize: 25,
   playerHeight: 1.65,
   playerRadius: 0.42,
-  walkSpeed: 4.25,
-  sprintSpeed: 6.8,
-  maxHealth: 100,
+  walkSpeed: 6.0,
+  sprintSpeed: 9.4,
+  maxHealth: 3,
   renderScaleMobile: 1,
   renderScaleDesktop: 1,
   maxStamina: 100,
   staminaDrainPerSecond: 25,
   staminaRegenPerSecond: 18,
   pickupRadius: 1.45,
-  enemyDamagePerSecond: 27,
-  enemyTouchRadius: 1.05,
+  enemyTouchRadius: 1.55,
+  contactKnockback: 7.5,
+  contactInvulnerability: 1.2,
   goobleSpawnSeconds: 240,
   goobleWarningSeconds: 210,
   lanceUnlockCount: 10,
@@ -76,11 +77,8 @@ const startScreen = document.querySelector('#start-screen');
 const endScreen = document.querySelector('#end-screen');
 const startButton = document.querySelector('#start-button');
 const restartButton = document.querySelector('#restart-button');
-const healthFill = document.querySelector('#health-fill');
+const heartsEl = document.querySelector('#hearts');
 const countEl = document.querySelector('#count');
-const objectiveEl = document.querySelector('#objective');
-const timerEl = document.querySelector('#timer');
-const threatEl = document.querySelector('#threat');
 const messageEl = document.querySelector('#message');
 const joystickEl = document.querySelector('#joystick');
 const joystickKnob = document.querySelector('#joystick-knob');
@@ -121,8 +119,9 @@ const player = {
   sprintToggle: false,
   collected: new Set(),
   unlocked: new Set(),
-  powerReadyAt: new Map(),
+  usedPowers: new Set(),
   bugRideUntil: 0,
+  invulnerableUntil: 0,
 };
 
 const collectibles = [];
@@ -147,7 +146,7 @@ let scentTargetId = null;
 
 // ---------- Gabba Land ----------
 scene.background = new THREE.Color(0x151a2c);
-scene.fog = new THREE.FogExp2(0x151a2c, 0.017);
+scene.fog = new THREE.FogExp2(0x111724, 0.029);
 
 scene.add(new THREE.HemisphereLight(0xb8d9ff, 0x442b50, 1.25));
 const moon = new THREE.DirectionalLight(0xfff0c7, 1.05);
@@ -222,15 +221,19 @@ for (let i = 0; i < 52; i++) {
   scene.add(flower);
 }
 
-const trunkMat = new THREE.MeshLambertMaterial({ color: 0x55321f });
-const leafMat = new THREE.MeshLambertMaterial({ color: 0xc16a28 });
-for (let i = 0; i < 13; i++) {
-  const x = 4 + (i % 4) * 5.5, z = -22 + Math.floor(i / 4) * 5.6;
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.18, .27, 2.4, 6), trunkMat);
-  trunk.position.set(x, 1.2, z);
+const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4d2b1b });
+const leafMat = new THREE.MeshLambertMaterial({ color: 0xb95d27 });
+for (let i = 0; i < 28; i++) {
+  const col = i % 6, row = Math.floor(i / 6);
+  const x = 2.5 + col * 4.25 + (row % 2) * 1.1;
+  const z = -23 + row * 4.4;
+  const height = 4.2 + (i % 4) * .75;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.19, .34, height, 6), trunkMat);
+  trunk.position.set(x, height / 2, z);
   scene.add(trunk);
-  const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(.72 + (i % 3) * .12, 0), leafMat);
-  crown.position.set(x, 2.5, z);
+  const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(1.0 + (i % 3) * .18, 0), leafMat);
+  crown.scale.y = 1.35;
+  crown.position.set(x, height + .3, z);
   scene.add(crown);
 }
 
@@ -302,7 +305,11 @@ function makeGabbaFigure(def, dark = false) {
     eye(root,-.16,1.25,-.48,.85); eye(root,.16,1.25,-.48,.85);
     const center = new THREE.Mesh(new THREE.SphereGeometry(.16,8,6), basicMat(0xffefef,dark)); center.position.set(0,1.86,0); root.add(center);
     for(let i=0;i<6;i++){ const p=new THREE.Mesh(new THREE.SphereGeometry(.19,7,5),basicMat(dark?0x553548:0xffd9e7,dark)); const a=i/6*Math.PI*2; p.position.set(Math.cos(a)*.28,1.86+Math.sin(a)*.28,0); p.scale.set(.65,1,.5); root.add(p); }
-    limb(root,-.48,.98,.45,c,true); limb(root,.48,.98,.45,c,true);
+    limb(root,-.52,.98,.62,c,true); limb(root,.52,.98,.62,c,true);
+    for (let i=0;i<5;i++) {
+      const petal=new THREE.Mesh(new THREE.SphereGeometry(.09,6,4),basicMat(dark?0x6c4358:0xfff4f7,dark));
+      const a=i/5*Math.PI*2; petal.position.set(Math.cos(a)*.14,.78+Math.sin(a)*.14,-.5); petal.scale.set(.7,1,.45); root.add(petal);
+    }
   } else if (def.id === 'toodee') {
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(.43,.82,5,8),basicMat(c,dark)); body.position.y=.98; root.add(body);
     eye(root,-.15,1.25,-.41,.85); eye(root,.15,1.25,-.41,.85);
@@ -314,7 +321,7 @@ function makeGabbaFigure(def, dark = false) {
     eye(root,-.15,1.18,-.44,.82); eye(root,.15,1.18,-.44,.82);
     for(const y of [.65,.92,1.19]) { const stripe=new THREE.Mesh(new THREE.TorusGeometry(.43,.07,5,14),basicMat(dark?0x113015:0x226f35,dark)); stripe.rotation.x=Math.PI/2; stripe.position.y=y; root.add(stripe); }
     for(const x of [-.23,.23]) { const horn=new THREE.Mesh(new THREE.ConeGeometry(.11,.34,5),basicMat(0xe85a41,dark)); horn.position.set(x,1.65,0); root.add(horn); }
-    limb(root,-.5,.9,.45,c,true); limb(root,.5,.9,.45,c,true);
+    limb(root,-.82,.92,1.25,c,true); limb(root,.82,.92,1.25,c,true);
   } else {
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(.5,.8,5,8),basicMat(0xe8e8f2,dark)); body.position.y=1; root.add(body);
     eye(root,-.14,1.22,-.45,.78); eye(root,.14,1.22,-.45,.78);
@@ -332,7 +339,7 @@ function makeCharacterStandIn(def) {
   ring.position.y = 0.08;
   root.add(ring);
   root.position.set(def.x, 0.05, def.z);
-  root.scale.setScalar(1.18);
+  root.scale.setScalar(1.34);
   root.userData = { type: 'character', id: def.id, name: def.name, color: def.color };
   scene.add(root);
   collectibles.push(root);
@@ -433,7 +440,7 @@ function makeEnemy(characterDef, index, options = {}) {
   const isGooble = options.gooble === true;
   const def = isGooble ? { id: 'gooble', name: 'Gooble', color: 0xc7c1df } : characterDef;
   const root = makeGabbaFigure(def, true);
-  root.scale.setScalar(isGooble ? 1.35 : 1.62);
+  root.scale.setScalar(isGooble ? 1.7 : 2.15);
 
   if (isGooble) {
     const tearMat = new THREE.MeshBasicMaterial({ color: 0x79bff0 });
@@ -449,7 +456,8 @@ function makeEnemy(characterDef, index, options = {}) {
   root.userData = {
     id: isGooble ? 'gooble' : 'hunter-' + characterDef.id,
     name: isGooble ? 'Gooble' : characterDef.name,
-    speed: isGooble ? 1.05 : 1.52 + index * .16,
+    speed: isGooble ? 2.0 : 3.25 + index * .16,
+    lastHitAt: -999,
     stunnedUntil: 0,
     phase: Math.random() * 10,
     isGooble,
@@ -471,7 +479,8 @@ function buildPowerButtons() {
     const btn = document.createElement('button');
     btn.className = 'power';
     btn.dataset.power = power.id;
-    btn.innerHTML = '\n      <span class="music-icon">' + power.icon + '</span>\n      <span class="power-copy"><b>' + power.song + '</b><small>' + power.owner + ' · ' + power.label + '</small></span>\n      <span class="num">' + (i + 1) + '</span>\n      <div class="cool"></div>';
+    const icons = { tummy:'♥', flowers:'✿', bugs:'◆', fish:'◁', space:'↔' };
+    btn.innerHTML = '\n      <span class="music-icon">' + (icons[power.id] || power.icon) + '</span>\n      <span class="power-copy"><b>' + power.song + '</b><small>' + power.owner + '</small></span>';
     btn.addEventListener('pointerdown', (e) => { e.preventDefault(); usePower(power.id); });
     powerButtonsEl.appendChild(btn);
   });
@@ -702,20 +711,15 @@ function buildScentTrail(target) {
 }
 
 function usePower(id) {
-  if (!started || ended || !id || !player.unlocked.has(id)) return;
+  if (!started || ended || !id || !player.unlocked.has(id) || player.usedPowers.has(id)) return;
   const power = POWERS.find(x => x.id === id);
   const now = performance.now() / 1000;
-  const readyAt = player.powerReadyAt.get(id) || 0;
-  if (now < readyAt) {
-    showMessage(power.song + ' recharging: ' + Math.ceil(readyAt - now) + 's', 900);
-    return;
-  }
-  player.powerReadyAt.set(id, now + power.cooldown);
+  player.usedPowers.add(id);
   beep(880, .08);
 
   if (id === 'tummy') {
-    player.health = Math.min(CONFIG.maxHealth, player.health + 45);
-    showMessage('PARTY IN MY TUMMY — +45 health.');
+    player.health = Math.min(CONFIG.maxHealth, player.health + 1);
+    showMessage('PARTY IN MY TUMMY — +1 HEART!');
   }
 
   if (id === 'flowers') {
@@ -756,27 +760,16 @@ function usePower(id) {
 
 function updateHud() {
   countEl.textContent = player.collected.size + ' / 10';
-  healthFill.style.width = Math.max(0, player.health) + '%';
-  staminaFill.style.width = Math.max(0, player.stamina) + '%';
-  objectiveEl.textContent = lanceUnlocked ? 'SAVE DJ LANCE' : 'FIND EVERYONE';
-
-  const now = performance.now() / 1000;
-  const elapsed = started ? Math.max(0, now - gameStartTime) : 0;
-  const minutes = Math.floor(elapsed / 60);
-  const seconds = Math.floor(elapsed % 60).toString().padStart(2, '0');
-  timerEl.textContent = minutes + ':' + seconds;
-  threatEl.textContent = goobleSpawned ? 'GOOBLE' : enemies.length ? enemies.length + ' AWAKE' : 'QUIET';
+  heartsEl.textContent = Array.from({length: CONFIG.maxHealth}, (_,i) => i < player.health ? '♥' : '♡').join(' ');
+  staminaFill.style.height = Math.max(0, player.stamina) + '%';
 
   document.querySelectorAll('.power').forEach(btn => {
     const id = btn.dataset.power;
     const unlocked = player.unlocked.has(id);
-    const p = POWERS.find(x => x.id === id);
-    const readyAt = player.powerReadyAt.get(id) || 0;
-    const remaining = Math.max(0, readyAt - now);
-    const ratio = p ? Math.min(1, remaining / p.cooldown) : 0;
-    btn.classList.toggle('unlocked', unlocked);
-    btn.classList.toggle('ready', unlocked && remaining <= 0);
-    btn.querySelector('.cool').style.transform = 'scaleX(' + (unlocked ? 1 - ratio : 0) + ')';
+    const used = player.usedPowers.has(id);
+    btn.classList.toggle('unlocked', unlocked && !used);
+    btn.classList.toggle('ready', unlocked && !used);
+    btn.classList.toggle('used', used);
   });
 }
 
@@ -814,9 +807,11 @@ function movePlayer(dt, now) {
   const mag = Math.hypot(strafe, forward);
   if (mag > 1) { strafe /= mag; forward /= mag; }
 
-  player.yaw -= lookStick.state.x * 2.85 * dt;
-  player.pitch -= lookStick.state.y * 2.15 * dt;
-  player.pitch = THREE.MathUtils.clamp(player.pitch, -1.1, 1.1);
+  const lx = Math.abs(lookStick.state.x) < .14 ? 0 : Math.sign(lookStick.state.x) * ((Math.abs(lookStick.state.x) - .14) / .86);
+  const ly = Math.abs(lookStick.state.y) < .14 ? 0 : Math.sign(lookStick.state.y) * ((Math.abs(lookStick.state.y) - .14) / .86);
+  player.yaw -= lx * 1.72 * dt;
+  player.pitch -= ly * 1.35 * dt;
+  player.pitch = THREE.MathUtils.clamp(player.pitch, -1.0, 1.0);
 
   const moving = Math.hypot(strafe, forward) > .08;
   const keyboardSprint = keys.has('ShiftLeft') || keys.has('ShiftRight');
@@ -930,69 +925,66 @@ function spawnGoobleIfNeeded(elapsed) {
 function drawMinimap() {
   const ctx = minimapCtx;
   const w = minimap.width, h = minimap.height;
-  const pad = 7;
-  const scale = (w - pad * 2) / (CONFIG.worldHalfSize * 2);
-  const mapX = x => pad + (x + CONFIG.worldHalfSize) * scale;
-  const mapY = z => pad + (z + CONFIG.worldHalfSize) * scale;
+  const cx = w/2, cy = h/2;
+  const radius = w * .46;
+  const localRange = 15;
+  const scale = radius / localRange;
 
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#101525';
-  ctx.fillRect(0, 0, w, h);
-
-  const zones = [
-    [-25,-25,25,25,'#654a8c'],
-    [-25,0,25,25,'#789a45'],
-    [0,-25,25,25,'#9a5934'],
-    [0,0,25,25,'#4c9bc3']
-  ];
-  for (const [x,z,zw,zh,c] of zones) {
-    ctx.fillStyle = c;
-    ctx.globalAlpha = .72;
-    ctx.fillRect(mapX(x), mapY(z), zw * scale, zh * scale);
-  }
-  ctx.globalAlpha = 1;
-
-  ctx.strokeStyle = 'rgba(255,255,255,.38)';
-  ctx.lineWidth = 2;
-  for (const [x,z,ww,dd] of WALLS) {
-    ctx.strokeRect(mapX(x-ww/2), mapY(z-dd/2), ww*scale, dd*scale);
-  }
-
-  for (const item of collectibles) {
-    if (!item.parent) continue;
-    ctx.fillStyle = item.userData.type === 'character' ? '#fff7a8' : '#ffffff';
-    ctx.beginPath();
-    ctx.arc(mapX(item.position.x), mapY(item.position.z), item.userData.type === 'character' ? 3.2 : 2.2, 0, Math.PI*2);
-    ctx.fill();
-  }
-
-  ctx.fillStyle = lanceUnlocked ? '#7cff9b' : '#f39b43';
-  ctx.fillRect(mapX(lanceTV.position.x)-3, mapY(lanceTV.position.z)-3, 6, 6);
-
-  for (const enemy of enemies) {
-    ctx.fillStyle = enemy.userData.isGooble ? '#d9cfff' : '#ff4f5c';
-    ctx.beginPath();
-    ctx.arc(mapX(enemy.position.x), mapY(enemy.position.z), enemy.userData.isGooble ? 3.2 : 2.7, 0, Math.PI*2);
-    ctx.fill();
-  }
-
-  const px = mapX(player.position.x), py = mapY(player.position.z);
+  ctx.clearRect(0,0,w,h);
   ctx.save();
-  ctx.translate(px, py);
-  ctx.rotate(-player.yaw);
-  ctx.fillStyle = '#8ef4ff';
   ctx.beginPath();
-  ctx.moveTo(0, -6);
-  ctx.lineTo(4.5, 5);
-  ctx.lineTo(0, 2.5);
-  ctx.lineTo(-4.5, 5);
-  ctx.closePath();
-  ctx.fill();
+  ctx.arc(cx,cy,radius,0,Math.PI*2);
+  ctx.clip();
+  ctx.fillStyle='rgba(8,12,20,.78)';
+  ctx.fillRect(0,0,w,h);
+
+  ctx.translate(cx,cy);
+  ctx.rotate(player.yaw);
+
+  const local = (x,z) => ({ x:(x-player.position.x)*scale, y:(z-player.position.z)*scale });
+
+  ctx.strokeStyle='rgba(255,255,255,.22)';
+  ctx.lineWidth=3;
+  for(const [x,z,ww,dd] of WALLS){
+    const p=local(x,z);
+    if(Math.hypot(p.x,p.y)>radius+40) continue;
+    ctx.strokeRect(p.x-ww*scale/2,p.y-dd*scale/2,ww*scale,dd*scale);
+  }
+
+  for(const item of collectibles){
+    if(!item.parent) continue;
+    const p=local(item.position.x,item.position.z);
+    if(Math.hypot(p.x,p.y)>radius) continue;
+    ctx.fillStyle=item.userData.type==='character'?'#ffe96f':'#ffffff';
+    ctx.beginPath();ctx.arc(p.x,p.y,item.userData.type==='character'?5:3.2,0,Math.PI*2);ctx.fill();
+  }
+
+  for(const enemy of enemies){
+    const p=local(enemy.position.x,enemy.position.z);
+    if(Math.hypot(p.x,p.y)>radius) continue;
+    ctx.fillStyle=enemy.userData.isGooble?'#d9cfff':'#ff5360';
+    ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fill();
+  }
+
+  if(lanceTV){
+    const p=local(lanceTV.position.x,lanceTV.position.z);
+    if(Math.hypot(p.x,p.y)<=radius){ctx.fillStyle=lanceUnlocked?'#79ff9d':'#f5a451';ctx.fillRect(p.x-4,p.y-4,8,8);}
+  }
+
   ctx.restore();
 
-  ctx.strokeStyle = 'rgba(255,255,255,.55)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(.5,.5,w-1,h-1);
+  ctx.fillStyle='#8ef4ff';
+  ctx.beginPath();ctx.moveTo(cx,cy-8);ctx.lineTo(cx+5,cy+6);ctx.lineTo(cx,cy+3);ctx.lineTo(cx-5,cy+6);ctx.closePath();ctx.fill();
+
+  ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.stroke();
+
+  const northAngle = -player.yaw;
+  const nx = cx + Math.sin(northAngle) * (radius-10);
+  const ny = cy - Math.cos(northAngle) * (radius-10);
+  const n=document.querySelector('#compass-n');
+  n.style.left=(nx/w*100)+'%';
+  n.style.top=(ny/h*100)+'%';
 }
 
 function updateEnemies(dt, now) {
@@ -1026,16 +1018,24 @@ function updateEnemies(dt, now) {
     enemy.lookAt(player.position.x, 1.55, player.position.z);
     enemy.position.y = Math.sin(now * 2.8 + enemy.userData.phase) * .06;
 
-    if (playerDist < CONFIG.enemyTouchRadius) {
-      const multiplier = enemy.userData.isGooble ? .72 : 1;
-      player.health -= CONFIG.enemyDamagePerSecond * multiplier * dt;
-      if (player.health <= 0) { player.health = 0; finish(false); }
+    if (playerDist < CONFIG.enemyTouchRadius && now >= player.invulnerableUntil) {
+      player.health = Math.max(0, player.health - 1);
+      player.invulnerableUntil = now + CONFIG.contactInvulnerability;
+      const awayX = pdx / (playerDist || 1);
+      const awayZ = pdz / (playerDist || 1);
+      const newX = THREE.MathUtils.clamp(player.position.x + awayX * CONFIG.contactKnockback, -23.5, 23.5);
+      const newZ = THREE.MathUtils.clamp(player.position.z + awayZ * CONFIG.contactKnockback, -23.5, 23.5);
+      if (!blocked(newX, player.position.z)) player.position.x = newX;
+      if (!blocked(player.position.x, newZ)) player.position.z = newZ;
+      showMessage(player.health > 0 ? 'OUCH! ' + player.health + ' HEART' + (player.health===1?'':'S') + ' LEFT!' : 'NO HEARTS LEFT!', 1500);
+      beep(115,.22);
+      if (player.health <= 0) finish(false);
     }
   }
 
-  const close = nearest < 4.7 && !ended;
+  const close = nearest < 6.2 && !ended;
   document.body.classList.toggle('danger', close);
-  document.body.classList.toggle('static-heavy', nearest < 7.5 && !ended);
+  document.body.classList.toggle('static-heavy', nearest < 11 && !ended);
 }
 
 function animate() {
