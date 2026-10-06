@@ -22,12 +22,14 @@
           <div class="panel heart-panel"><span class="label">HEALTH</span><div id="hearts" aria-label="health">♥ ♥ ♥</div></div>
         </div>
 
-        <div id="minimap-wrap" class="panel">
-          <canvas id="minimap" width="220" height="220" aria-label="local mini map"></canvas>
-          <div id="compass-n">N</div>
+        <div id="minimap-wrap" class="panel" aria-label="enemy radar">
+          <canvas id="minimap" width="180" height="180"></canvas>
         </div>
 
         <button id="ingame-settings" class="screen-gear" type="button" aria-label="Settings">⚙</button>
+        <div id="briefcase-tray" aria-hidden="true">
+          <span class="case-lid"></span><span id="case-icon">★</span>
+        </div>
         <div id="message" aria-live="polite"></div>
         <div id="crosshair">+</div>
         <div id="jumpscare" aria-hidden="true">
