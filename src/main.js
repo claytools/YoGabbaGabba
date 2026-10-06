@@ -698,7 +698,7 @@ async function setMusic(on) {
   musicToggle.classList.toggle('active', on);
   musicToggle.textContent = on ? 'MUSIC ON' : 'MUSIC';
   if (on) {
-    bgm.volume = .22;
+    bgm.volume = settings.music;
     try { await bgm.play(); } catch (_) { musicOn = false; musicToggle.classList.remove('active'); musicToggle.textContent = 'MUSIC'; }
   } else {
     bgm.pause();
@@ -1090,8 +1090,8 @@ function updateLanceTV(now) {
   const dist = Math.hypot(lanceTV.position.x - player.position.x, lanceTV.position.z - player.position.z);
   if (lanceScreen) {
     if (lanceUnlocked) {
-      const flicker = .65 + Math.sin(now * 10) * .25;
-      lanceScreen.material.color.setRGB(.12 * flicker, .45 * flicker, .24 * flicker);
+      const flicker = .72 + Math.sin(now * 13) * .28;
+      lanceScreen.material.color.setRGB(.16 * flicker, .62 * flicker, .28 * flicker);
     } else {
       const flicker = .65 + Math.sin(now * 3.1) * .08;
       lanceScreen.material.color.setRGB(.06 * flicker, .08 * flicker, .13 * flicker);
