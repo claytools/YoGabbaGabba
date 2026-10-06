@@ -1,6 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js';
 
-// GABBA AFTER DARK
+// GABBA LAND: SIGNAL LOST
 const CONFIG = {
   worldHalfSize: 32,
   playerHeight: 1.65,
@@ -991,11 +991,12 @@ function finish(won) {
   ended = true;
   hudEl.classList.add('hidden');
   endScreen.classList.add('active');
+  endScreen.classList.toggle('won', won);
   document.body.classList.remove('danger', 'static-heavy', 'escape-phase');
   if (won) {
-    endEyebrow.textContent = 'SUPER MUSIC FRIENDS SHOW SIGNAL RESTORED';
-    endTitle.textContent = 'DJ LANCE IS OUT';
-    endCopy.textContent = 'YOU SAVED DJ LANCE!';
+    endEyebrow.textContent = 'SIGNAL RESTORED';
+    endTitle.textContent = 'YOU SAVED DJ LANCE!';
+    endCopy.textContent = 'Gabba Land is back on the air.';
   } else {
     endEyebrow.textContent = 'SIGNAL LOST';
     endTitle.textContent = 'THE DARK GOT YOU';
@@ -1443,7 +1444,7 @@ function beginGame() {
   started = true;
   gameStartTime = performance.now() / 1000;
   startScreen.classList.remove('active');
-  endScreen.classList.remove('active');
+  endScreen.classList.remove('active','won');
   hudEl.classList.remove('hidden');
   showMessage('DJ LANCE IS TRAPPED! FIND 5 FRIENDS + 5 SONGS.', 4200);
   pickupSoundCtx?.resume?.();
