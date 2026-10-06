@@ -164,7 +164,7 @@ let pausedForSettings = false;
 
 const DEFAULT_SETTINGS = {
   lookSensitivity: 1.0,
-  brightness: 1.0,
+  brightness: 0.92,
   fog: 1.0,
   static: 1.0,
   music: 0.22,
@@ -186,7 +186,7 @@ function applySettings(){
   document.body.style.setProperty('--game-brightness', settings.brightness);
   document.body.style.setProperty('--static-opacity', String(.25 * settings.static));
   document.body.classList.add('bright-game');
-  scene.fog.density = 0.029 * settings.fog;
+  scene.fog.density = 0.034 * settings.fog;
   bgm.volume = settings.music;
 }
 function openSettings(){
@@ -214,15 +214,15 @@ for (const el of [settingLook,settingBrightness,settingFog,settingStatic,setting
 settingInvert.addEventListener('change', ()=>{ settings.invertY=settingInvert.checked; saveSettings(); });
 
 // ---------- Gabba Land ----------
-scene.background = new THREE.Color(0x151a2c);
-scene.fog = new THREE.FogExp2(0x111724, 0.029);
+scene.background = new THREE.Color(0x080b12);
+scene.fog = new THREE.FogExp2(0x090d14, 0.034);
 
-scene.add(new THREE.HemisphereLight(0xb8d9ff, 0x442b50, 1.25));
-const moon = new THREE.DirectionalLight(0xfff0c7, 1.05);
+scene.add(new THREE.HemisphereLight(0x6f83a4, 0x160e18, 0.78));
+const moon = new THREE.DirectionalLight(0xc5d0ff, 0.65);
 moon.position.set(-8, 18, 9);
 scene.add(moon);
 
-const flashlight = new THREE.SpotLight(0xfff4d6, 8.2, 23, Math.PI / 6, 0.5, 1.2);
+const flashlight = new THREE.SpotLight(0xfff0d0, 7.4, 20, Math.PI / 7, 0.58, 1.3);
 flashlight.position.set(0, 0, 0);
 flashlight.target.position.set(0, 0, -5);
 camera.add(flashlight);
@@ -381,55 +381,86 @@ function limb(root, x, y, length, color, horizontal = false) {
 function makeGabbaFigure(def, dark = false) {
   const root = new THREE.Group();
   const c = def.color;
+  const feature = (color) => new THREE.MeshBasicMaterial({ color: dark ? 0x0b0b0d : color });
+
+  function mouth(y,z,w=.28,h=.08,color=0xf36a38){
+    const m=new THREE.Mesh(new THREE.CapsuleGeometry(h,w,3,8),feature(color));
+    m.rotation.z=Math.PI/2; m.position.set(0,y,z); root.add(m); return m;
+  }
+  function leg(x,y,length,color){
+    const m=new THREE.Mesh(new THREE.CapsuleGeometry(.10,length,4,8),basicMat(color,dark));
+    m.position.set(x,y,0); root.add(m);
+  }
 
   if (def.id === 'plex') {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(.82, 1.05, .5), basicMat(c, dark));
-    body.position.y = 1.05; root.add(body);
-    const face = new THREE.Mesh(new THREE.BoxGeometry(.58, .35, .04), new THREE.MeshBasicMaterial({ color: dark ? 0x080808 : 0x26252b }));
-    face.position.set(0, 1.24, -.27); root.add(face);
-    eye(root, -.14, 1.25, -.31, .72); eye(root, .14, 1.25, -.31, .72);
-    limb(root, -.56, 1.05, .58, dark ? 0x777777 : 0xb9bdc4, true);
-    limb(root,  .56, 1.05, .58, dark ? 0x777777 : 0xb9bdc4, true);
-    limb(root, -.22, .37, .55, dark ? 0x777777 : 0xb9bdc4);
-    limb(root,  .22, .37, .55, dark ? 0x777777 : 0xb9bdc4);
-    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.46,5), basicMat(dark ? 0x555555 : 0xc0c0c0));
-    antenna.position.set(0,1.82,0); root.add(antenna);
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(.09,7,5), basicMat(0xe64a3d,dark));
-    ball.position.set(0,2.07,0); root.add(ball);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(.86, 1.0, .58), basicMat(c,dark));
+    body.position.y=1.03; root.add(body);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(.9,.62,.62),basicMat(c,dark));
+    head.position.y=1.68; root.add(head);
+    const face = new THREE.Mesh(new THREE.BoxGeometry(.62,.36,.035), feature(0x222329));
+    face.position.set(0,1.68,-.328); root.add(face);
+    eye(root,-.16,1.69,-.35,.8); eye(root,.16,1.69,-.35,.8);
+    const chest=new THREE.Mesh(new THREE.CylinderGeometry(.14,.14,.025,12),feature(0x232329));
+    chest.rotation.x=Math.PI/2; chest.position.set(0,1.04,-.31); root.add(chest);
+    limb(root,-.63,1.08,.72,dark?0x69696d:0xbec3c8,true);
+    limb(root,.63,1.08,.72,dark?0x69696d:0xbec3c8,true);
+    leg(-.23,.35,.48,dark?0x69696d:0xbec3c8); leg(.23,.35,.48,dark?0x69696d:0xbec3c8);
+    const antenna=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.5,5),basicMat(dark?0x55555a:0xbfc5cb,dark));
+    antenna.position.set(0,2.23,0); root.add(antenna);
+    const ball=new THREE.Mesh(new THREE.SphereGeometry(.09,7,5),feature(0xe64a3d)); ball.position.set(0,2.5,0); root.add(ball);
   } else if (def.id === 'muno') {
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(.44, 1.2, 5, 9), basicMat(c, dark));
-    body.position.y = 1.2; root.add(body);
-    eye(root, 0, 1.55, -.43, 1.25);
-    for (let i=0;i<14;i++) {
-      const bump = new THREE.Mesh(new THREE.SphereGeometry(.07,5,4), basicMat(c,dark));
-      const a=i*2.4; bump.position.set(Math.sin(a)*.41,.55+(i%6)*.23,Math.cos(a)*.34); root.add(bump);
+    const body=new THREE.Mesh(new THREE.CapsuleGeometry(.46,1.45,5,10),basicMat(c,dark));
+    body.position.y=1.3; root.add(body);
+    eye(root,0,1.83,-.45,1.28);
+    mouth(1.48,-.46,.22,.06,0xffffff);
+    for(let i=0;i<18;i++){
+      const bump=new THREE.Mesh(new THREE.SphereGeometry(.065,5,4),basicMat(c,dark));
+      const a=i*2.18; bump.position.set(Math.sin(a)*.43,.5+(i%7)*.23,Math.cos(a)*.34); root.add(bump);
     }
-    limb(root,-.5,.9,.5,c,true); limb(root,.5,.9,.5,c,true);
+    limb(root,-.62,1.15,.82,c,true); limb(root,.62,1.15,.82,c,true);
+    leg(-.22,.3,.58,c); leg(.22,.3,.58,c);
   } else if (def.id === 'foofa') {
-    const body = new THREE.Mesh(new THREE.SphereGeometry(.58, 10, 8), basicMat(c, dark));
-    body.scale.set(.9,1.35,.82); body.position.y = 1.0; root.add(body);
-    eye(root,-.16,1.25,-.48,.85); eye(root,.16,1.25,-.48,.85);
-    const center = new THREE.Mesh(new THREE.SphereGeometry(.16,8,6), basicMat(0xffefef,dark)); center.position.set(0,1.86,0); root.add(center);
-    for(let i=0;i<6;i++){ const p=new THREE.Mesh(new THREE.SphereGeometry(.19,7,5),basicMat(dark?0x553548:0xffd9e7,dark)); const a=i/6*Math.PI*2; p.position.set(Math.cos(a)*.28,1.86+Math.sin(a)*.28,0); p.scale.set(.65,1,.5); root.add(p); }
-    limb(root,-.52,.98,.62,c,true); limb(root,.52,.98,.62,c,true);
-    for (let i=0;i<5;i++) {
-      const petal=new THREE.Mesh(new THREE.SphereGeometry(.09,6,4),basicMat(dark?0x6c4358:0xfff4f7,dark));
-      const a=i/5*Math.PI*2; petal.position.set(Math.cos(a)*.14,.78+Math.sin(a)*.14,-.5); petal.scale.set(.7,1,.45); root.add(petal);
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.6,12,9),basicMat(c,dark));
+    body.scale.set(.92,1.18,.82); body.position.y=.95; root.add(body);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.45,12,9),basicMat(c,dark));
+    head.position.y=1.55; root.add(head);
+    eye(root,-.15,1.62,-.41,.86); eye(root,.15,1.62,-.41,.86);
+    mouth(1.38,-.43,.19,.055,0xe13f75);
+    for(let i=0;i<7;i++){
+      const petal=new THREE.Mesh(new THREE.SphereGeometry(.15,7,5),basicMat(dark?0x3a2b33:0xffe9ef,dark));
+      const a=i/7*Math.PI*2; petal.position.set(Math.cos(a)*.34,1.12+Math.sin(a)*.12,-.33); petal.scale.set(.95,.55,.45); root.add(petal);
     }
+    const fc=new THREE.Mesh(new THREE.SphereGeometry(.11,7,5),feature(0xffd33f)); fc.position.set(0,2.12,-.02); root.add(fc);
+    for(let i=0;i<6;i++){
+      const p=new THREE.Mesh(new THREE.SphereGeometry(.14,7,5),basicMat(dark?0x49313c:0xffd5e3,dark));
+      const a=i/6*Math.PI*2; p.position.set(Math.cos(a)*.22,2.12+Math.sin(a)*.22,-.02); p.scale.set(.75,1,.55); root.add(p);
+    }
+    limb(root,-.58,1.02,.72,c,true); limb(root,.58,1.02,.72,c,true);
+    leg(-.2,.3,.48,c); leg(.2,.3,.48,c);
   } else if (def.id === 'toodee') {
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(.43,.82,5,8),basicMat(c,dark)); body.position.y=.98; root.add(body);
-    eye(root,-.15,1.25,-.41,.85); eye(root,.15,1.25,-.41,.85);
-    for(const x of [-.23,.23]) { const ear=new THREE.Mesh(new THREE.ConeGeometry(.16,.42,4),basicMat(c,dark)); ear.position.set(x,1.7,0); root.add(ear); }
-    const belly=new THREE.Mesh(new THREE.SphereGeometry(.33,8,6),basicMat(dark?0x222a30:0x9fd7f2,dark)); belly.scale.set(.8,1.15,.25); belly.position.set(0,.9,-.38); root.add(belly);
-    limb(root,-.48,.95,.45,c,true); limb(root,.48,.95,.45,c,true);
+    const body=new THREE.Mesh(new THREE.CapsuleGeometry(.46,.9,5,9),basicMat(c,dark)); body.position.y=1.0; root.add(body);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.46,11,8),basicMat(c,dark)); head.position.y=1.52; root.add(head);
+    eye(root,-.15,1.62,-.43,.9); eye(root,.15,1.62,-.43,.9);
+    const nose=new THREE.Mesh(new THREE.SphereGeometry(.09,7,5),feature(0x18364d)); nose.position.set(0,1.46,-.48); root.add(nose);
+    for(const x of [-.25,.25]){const ear=new THREE.Mesh(new THREE.ConeGeometry(.17,.38,4),basicMat(c,dark));ear.position.set(x,1.98,0);root.add(ear);}
+    const belly=new THREE.Mesh(new THREE.SphereGeometry(.34,9,7),basicMat(dark?0x1c2933:0xa5dcef,dark));belly.scale.set(.85,1.15,.22);belly.position.set(0,.95,-.42);root.add(belly);
+    for(const x of [-.43,.43]){const fin=new THREE.Mesh(new THREE.ConeGeometry(.16,.42,5),basicMat(dark?0x18232c:0x8fd1e8,dark));fin.position.set(x,1.46,-.05);fin.rotation.z=x<0?.9:-.9;root.add(fin);}
+    limb(root,-.58,.98,.7,c,true); limb(root,.58,.98,.7,c,true);
+    leg(-.2,.28,.52,c); leg(.2,.28,.52,c);
+    const tail=new THREE.Mesh(new THREE.ConeGeometry(.2,.62,4),basicMat(c,dark));tail.position.set(0,.9,.55);tail.rotation.x=Math.PI/2;root.add(tail);
   } else if (def.id === 'brobee') {
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(.47,.72,5,8),basicMat(c,dark)); body.position.y=.93; root.add(body);
-    eye(root,-.15,1.18,-.44,.82); eye(root,.15,1.18,-.44,.82);
-    for(const y of [.65,.92,1.19]) { const stripe=new THREE.Mesh(new THREE.TorusGeometry(.43,.07,5,14),basicMat(dark?0x113015:0x226f35,dark)); stripe.rotation.x=Math.PI/2; stripe.position.y=y; root.add(stripe); }
-    for(const x of [-.23,.23]) { const horn=new THREE.Mesh(new THREE.ConeGeometry(.11,.34,5),basicMat(0xe85a41,dark)); horn.position.set(x,1.65,0); root.add(horn); }
-    limb(root,-.82,.92,1.25,c,true); limb(root,.82,.92,1.25,c,true);
+    const body=new THREE.Mesh(new THREE.CapsuleGeometry(.5,.9,5,9),basicMat(c,dark));body.position.y=.95;root.add(body);
+    eye(root,-.15,1.36,-.45,.88); eye(root,.15,1.36,-.45,.88);
+    mouth(1.13,-.47,.22,.065,0xf06a3e);
+    for(const y of [.58,.82,1.06,1.3]){
+      const stripe=new THREE.Mesh(new THREE.TorusGeometry(.44,.065,5,16),basicMat(dark?0x0b2511:0x1f6e31,dark));
+      stripe.rotation.x=Math.PI/2;stripe.position.y=y;root.add(stripe);
+    }
+    for(const x of [-.24,0,.24]){const horn=new THREE.Mesh(new THREE.ConeGeometry(.12,.36,5),basicMat(0xea563e,dark));horn.position.set(x,1.82,0);root.add(horn);}
+    limb(root,-.92,1.02,1.55,c,true); limb(root,.92,1.02,1.55,c,true);
+    leg(-.23,.26,.48,c); leg(.23,.26,.48,c);
   } else {
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(.5,.8,5,8),basicMat(0xe8e8f2,dark)); body.position.y=1; root.add(body);
+    const body=new THREE.Mesh(new THREE.CapsuleGeometry(.5,.8,5,8),basicMat(0xe8e8f2,dark)); body.position.y=1; root.add(body);
     eye(root,-.14,1.22,-.45,.78); eye(root,.14,1.22,-.45,.78);
   }
   return root;
@@ -1046,7 +1077,7 @@ function drawMinimap() {
   const w = minimap.width, h = minimap.height;
   const cx = w/2, cy = h/2;
   const radius = w * .46;
-  const localRange = 18;
+  const localRange = 10.5;
   const scale = radius / localRange;
 
   ctx.clearRect(0,0,w,h);
