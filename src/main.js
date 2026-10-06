@@ -138,6 +138,8 @@ const player = {
   usedPowers: new Set(),
   bugRideUntil: 0,
   invulnerableUntil: 0,
+  moving: false,
+  isSprinting: false,
 };
 
 const collectibles = [];
@@ -161,6 +163,8 @@ let scentUntil = 0;
 let scentTargetId = null;
 let lastJumpScareAt = -999;
 let pausedForSettings = false;
+let nextPlayerStepAt = 0;
+let nextHunterStepAt = 0;
 
 const DEFAULT_SETTINGS = {
   lookSensitivity: 1.0,
@@ -296,13 +300,15 @@ for (let i = 0; i < 28; i++) {
   const col = i % 6, row = Math.floor(i / 6);
   const x = 2.5 + col * 4.25 + (row % 2) * 1.1;
   const z = -23 + row * 4.4;
-  const height = 4.2 + (i % 4) * .75;
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.19, .34, height, 6), trunkMat);
+  const height = 5.8 + (i % 4) * .9;
+  const trunkRadius = .38 + (i % 3) * .05;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(trunkRadius*.72, trunkRadius, height, 6), trunkMat);
   trunk.position.set(x, height / 2, z);
   scene.add(trunk);
-  const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(1.0 + (i % 3) * .18, 0), leafMat);
-  crown.scale.y = 1.35;
-  crown.position.set(x, height + .3, z);
+  collisionBoxes.push({minX:x-trunkRadius,maxX:x+trunkRadius,minZ:z-trunkRadius,maxZ:z+trunkRadius});
+  const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(1.35 + (i % 3) * .22, 0), leafMat);
+  crown.scale.y = 1.55;
+  crown.position.set(x, height + .5, z);
   scene.add(crown);
 }
 
@@ -476,7 +482,7 @@ function makeCharacterStandIn(def) {
   ring.position.y = 0.08;
   root.add(ring);
   root.position.set(def.x, 0.05, def.z);
-  root.scale.setScalar(1.34);
+  root.scale.setScalar(0.62);
   root.userData = { type: 'character', id: def.id, name: def.name, color: def.color };
   scene.add(root);
   collectibles.push(root);
@@ -598,6 +604,8 @@ function makeEnemy(characterDef, index, options = {}) {
     stunnedUntil: 0,
     phase: Math.random() * 10,
     isGooble,
+    waypoint: null,
+    nextRouteAt: 0,
   };
   scene.add(root);
   enemies.push(root);
@@ -612,12 +620,14 @@ function makeEnemy(characterDef, index, options = {}) {
 
 function buildPowerButtons() {
   powerButtonsEl.innerHTML = '';
-  POWERS.forEach((power, i) => {
+  POWERS.forEach((power) => {
     const btn = document.createElement('button');
     btn.className = 'power';
     btn.dataset.power = power.id;
-    const icons = { tummy:'♥', flowers:'✿', bugs:'◆', fish:'◁', space:'↔' };
-    btn.innerHTML = '\n      <span class="music-icon">' + (icons[power.id] || power.icon) + '</span>\n      <span class="power-copy"><b>' + power.song + '</b><small>' + power.owner + '</small></span>';
+    btn.style.setProperty('--power-color', '#' + power.color.toString(16).padStart(6,'0'));
+    btn.setAttribute('aria-label', power.owner + ' song power: ' + power.song);
+    btn.title = power.description;
+    btn.innerHTML = '<span class="music-icon">♪</span>';
     btn.addEventListener('pointerdown', (e) => { e.preventDefault(); usePower(power.id); });
     powerButtonsEl.appendChild(btn);
   });
@@ -767,6 +777,36 @@ function beep(frequency = 520, duration = .07) {
     gain.gain.exponentialRampToValueAtTime(.0001, pickupSoundCtx.currentTime + duration);
     osc.stop(pickupSoundCtx.currentTime + duration);
   } catch (_) {}
+}
+
+function footstep(kind='player', intensity=1){
+  try{
+    pickupSoundCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const ctx=pickupSoundCtx;
+    const osc=ctx.createOscillator();
+    const gain=ctx.createGain();
+    const filter=ctx.createBiquadFilter();
+    osc.type='triangle';
+    osc.frequency.value=kind==='hunter' ? 58 : 84;
+    filter.type='lowpass';
+    filter.frequency.value=kind==='hunter' ? 180 : 260;
+    gain.gain.setValueAtTime(.0001,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime((kind==='hunter'?.035:.022)*intensity,ctx.currentTime+.008);
+    gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.09);
+    osc.connect(filter).connect(gain).connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime+.1);
+  }catch(_){}
+}
+function updateFootsteps(now,moving,sprinting,nearestEnemy){
+  if(moving && now>=nextPlayerStepAt){
+    footstep('player',sprinting?1.25:.8);
+    nextPlayerStepAt=now+(sprinting?.28:.43);
+  }
+  if(nearestEnemy<10 && now>=nextHunterStepAt){
+    const intensity=THREE.MathUtils.clamp(1-(nearestEnemy/11),.15,1);
+    footstep('hunter',.55+intensity*.9);
+    nextHunterStepAt=now+THREE.MathUtils.lerp(.72,.34,intensity);
+  }
 }
 
 function collect(item) {
@@ -967,6 +1007,8 @@ function movePlayer(dt, now) {
   const keyboardSprint = keys.has('ShiftLeft') || keys.has('ShiftRight');
   const wantsSprint = player.sprintToggle || keyboardSprint;
   const sprinting = wantsSprint && moving && player.stamina > 0;
+  player.moving = moving;
+  player.isSprinting = sprinting;
 
   if (sprinting) {
     player.stamina = Math.max(0, player.stamina - CONFIG.staminaDrainPerSecond * dt);
@@ -1107,8 +1149,15 @@ function drawMinimap() {
     if(!item.parent) continue;
     const p=local(item.position.x,item.position.z);
     if(Math.hypot(p.x,p.y)>radius) continue;
-    ctx.fillStyle=item.userData.type==='character'?'#ffe96f':'#ffffff';
-    ctx.beginPath();ctx.arc(p.x,p.y,item.userData.type==='character'?5:3.2,0,Math.PI*2);ctx.fill();
+    if(item.userData.type==='character'){
+      ctx.fillStyle='#'+item.userData.color.toString(16).padStart(6,'0');
+      ctx.beginPath();ctx.arc(p.x,p.y,7,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=1.5;ctx.stroke();
+    } else {
+      ctx.fillStyle='#'+item.userData.color.toString(16).padStart(6,'0');
+      ctx.font='bold 16px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('♪',p.x,p.y+1);
+    }
   }
 
   for(const enemy of enemies){
@@ -1125,8 +1174,11 @@ function drawMinimap() {
 
   ctx.restore();
 
-  ctx.fillStyle='#8ef4ff';
-  ctx.beginPath();ctx.moveTo(cx,cy-8);ctx.lineTo(cx+5,cy+6);ctx.lineTo(cx,cy+3);ctx.lineTo(cx-5,cy+6);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#41e6ff';
+  ctx.beginPath();ctx.arc(cx,cy,8,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#ffffff';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='#ffffff';
+  ctx.beginPath();ctx.moveTo(cx,cy-12);ctx.lineTo(cx+5,cy-3);ctx.lineTo(cx-5,cy-3);ctx.closePath();ctx.fill();
 
   ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=2;
   ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.stroke();
@@ -1158,17 +1210,49 @@ function triggerJumpScare(enemy, now){
   beep(enemy.userData.isGooble?88:115,.12);
   setTimeout(()=>beep(enemy.userData.isGooble?70:82,.16),80);
 }
-function pickSteer(enemy,dx,dz,step){
-  const options=[
-    [dx,dz],
-    [dx*.55-dz*.84,dz*.55+dx*.84],
-    [dx*.55+dz*.84,dz*.55-dx*.84],
-    [-dz,dx],
-    [dz,-dx]
-  ];
-  for(const [sx,sz] of options){
-    const nx=enemy.position.x+sx*step, nz=enemy.position.z+sz*step;
-    if(!enemyBlocked(nx,nz,.8)) return [sx,sz];
+function segmentHitsBox(ax,az,bx,bz,b,pad=.9){
+  const steps=10;
+  for(let i=1;i<=steps;i++){
+    const t=i/steps, x=THREE.MathUtils.lerp(ax,bx,t), z=THREE.MathUtils.lerp(az,bz,t);
+    if(x>b.minX-pad&&x<b.maxX+pad&&z>b.minZ-pad&&z<b.maxZ+pad) return true;
+  }
+  return false;
+}
+function directPathBlocked(enemy){
+  return collisionBoxes.some(b=>segmentHitsBox(enemy.position.x,enemy.position.z,player.position.x,player.position.z,b,.85));
+}
+function chooseWaypoint(enemy){
+  const blocking=collisionBoxes.find(b=>segmentHitsBox(enemy.position.x,enemy.position.z,player.position.x,player.position.z,b,.9));
+  if(!blocking){ enemy.userData.waypoint=null; return; }
+  const pad=1.5;
+  const corners=[
+    new THREE.Vector2(blocking.minX-pad,blocking.minZ-pad),
+    new THREE.Vector2(blocking.maxX+pad,blocking.minZ-pad),
+    new THREE.Vector2(blocking.minX-pad,blocking.maxZ+pad),
+    new THREE.Vector2(blocking.maxX+pad,blocking.maxZ+pad)
+  ].filter(p=>!enemyBlocked(p.x,p.y,.8));
+  corners.sort((a,b)=>(
+    Math.hypot(a.x-enemy.position.x,a.y-enemy.position.z)+Math.hypot(a.x-player.position.x,a.y-player.position.z)
+  )-(
+    Math.hypot(b.x-enemy.position.x,b.y-enemy.position.z)+Math.hypot(b.x-player.position.x,b.y-player.position.z)
+  ));
+  enemy.userData.waypoint=corners[0]||null;
+}
+function pickSteer(enemy,dx,dz,step,now){
+  if(!enemy.userData.nextRouteAt||now>=enemy.userData.nextRouteAt){
+    enemy.userData.nextRouteAt=now+.35;
+    if(directPathBlocked(enemy)) chooseWaypoint(enemy); else enemy.userData.waypoint=null;
+  }
+  let tx=player.position.x,tz=player.position.z;
+  if(enemy.userData.waypoint){
+    tx=enemy.userData.waypoint.x;tz=enemy.userData.waypoint.y;
+    if(Math.hypot(tx-enemy.position.x,tz-enemy.position.z)<1.1) enemy.userData.waypoint=null;
+  }
+  let sx=tx-enemy.position.x,sz=tz-enemy.position.z;
+  const len=Math.hypot(sx,sz)||1;sx/=len;sz/=len;
+  const options=[[sx,sz],[sx*.7-sz*.7,sz*.7+sx*.7],[sx*.7+sz*.7,sz*.7-sx*.7]];
+  for(const [ox,oz] of options){
+    if(!enemyBlocked(enemy.position.x+ox*step,enemy.position.z+oz*step,.8)) return [ox,oz];
   }
   return [0,0];
 }
@@ -1198,7 +1282,7 @@ function updateEnemies(dt, now) {
 
     const moveSpeed = enemy.userData.speed;
     const step = moveSpeed * dt;
-    const [sx,sz] = pickSteer(enemy,dx,dz,step);
+    const [sx,sz] = pickSteer(enemy,dx,dz,step,now);
     const nx = enemy.position.x + sx * step;
     const nz = enemy.position.z + sz * step;
     if (!enemyBlocked(nx, enemy.position.z, .8)) enemy.position.x = nx;
@@ -1224,8 +1308,18 @@ function updateEnemies(dt, now) {
   }
 
   const close = nearest < 6.2 && !ended;
+  const staticRange=15;
+  const proximity=nearest<staticRange ? THREE.MathUtils.clamp(1-nearest/staticRange,0,1) : 0;
+  const eased=proximity*proximity;
+  const base=.045;
+  const crtOpacity=base + eased * .72 * settings.static;
+  const noiseOpacity=.04 + eased * .52 * settings.static;
+  screenFrame.style.setProperty('--crt-opacity',crtOpacity.toFixed(3));
+  screenFrame.style.setProperty('--noise-opacity',noiseOpacity.toFixed(3));
+  screenFrame.style.setProperty('--game-contrast',(1+eased*.18).toFixed(2));
   document.body.classList.toggle('danger', close);
-  document.body.classList.toggle('static-heavy', nearest < 11 && !ended);
+  document.body.classList.toggle('static-heavy', proximity>.08 && !ended);
+  updateFootsteps(now,player.moving,player.isSprinting,nearest);
 }
 
 function animate() {
