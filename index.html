@@ -20,16 +20,27 @@
       <div class="panel stat"><span class="label">FOUND</span><span id="count">0 / 10</span></div>
       <div class="panel stat mini"><span class="label">TIME</span><span id="timer">0:00</span></div>
       <div class="panel stat mini"><span class="label">DANGER</span><span id="threat">QUIET</span></div>
-      <div class="panel health-panel"><span class="label">HEALTH</span><div class="health-track"><div id="health-fill"></div></div></div>
+      <div class="panel health-panel">
+        <div class="meter-row"><span class="label">HEALTH</span><div class="meter-track"><div id="health-fill"></div></div></div>
+        <div class="meter-row"><span class="label">STAMINA</span><div class="meter-track"><div id="stamina-fill"></div></div></div>
+      </div>
     </div>
+
+    <div id="minimap-wrap" class="panel">
+      <canvas id="minimap" width="160" height="160" aria-label="mini map"></canvas>
+    </div>
+
     <div id="message" aria-live="polite"></div>
+
     <div id="mobile-controls">
-      <div id="joystick" class="touch-zone" aria-label="movement joystick"><div id="joystick-knob"></div></div>
+      <div id="joystick" class="touch-zone stick" aria-label="movement joystick"><div id="joystick-knob" class="stick-knob"></div></div>
       <button id="sprint" class="round-button action-button" type="button">RUN</button>
+      <div id="lookstick" class="touch-zone stick" aria-label="camera joystick"><div id="lookstick-knob" class="stick-knob"></div></div>
       <div id="power-buttons"></div>
     </div>
+
     <div id="crosshair">+</div>
-    <div id="desktop-help">WASD move · drag to look · Shift run · 1–5 songs</div>
+    <div id="desktop-help">WASD move · mouse drag look · Shift run · 1–5 songs</div>
   </div>
 
   <div id="start-screen" class="screen active">
