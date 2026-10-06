@@ -27,8 +27,15 @@
           <div id="compass-n">N</div>
         </div>
 
+        <button id="ingame-settings" class="screen-gear" type="button" aria-label="Settings">⚙</button>
         <div id="message" aria-live="polite"></div>
         <div id="crosshair">+</div>
+        <div id="jumpscare" aria-hidden="true">
+          <div id="jumpscare-face">
+            <div class="jump-eyes"><span></span><span></span></div>
+            <div id="jumpscare-name">RUN</div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -71,7 +78,26 @@
       <h1>GABBA<br/>AFTER DARK</h1>
       <p><strong>DJ LANCE IS TRAPPED.</strong></p>
       <p>Find 5 friends. Find 5 songs. Get back to the TV.</p>
-      <button id="start-button" class="primary" type="button">START</button>
+      <div class="start-actions">
+        <button id="start-button" class="primary" type="button">START</button>
+        <button id="settings-button" class="secondary" type="button">SETTINGS</button>
+      </div>
+      <small class="fan-note">Fan-made, noncommercial project inspired by Yo Gabba Gabba!. Not affiliated with or endorsed by the rights holders.</small>
+    </div>
+  </div>
+
+  <div id="settings-screen" class="screen">
+    <div class="card settings-card">
+      <p class="eyebrow">SETTINGS</p>
+      <h2>GAME OPTIONS</h2>
+      <label>LOOK SENSITIVITY <input id="setting-look" type="range" min="0.65" max="1.45" step="0.05"></label>
+      <label>BRIGHTNESS <input id="setting-brightness" type="range" min="0.8" max="1.35" step="0.05"></label>
+      <label>FOG <input id="setting-fog" type="range" min="0.7" max="1.45" step="0.05"></label>
+      <label>STATIC <input id="setting-static" type="range" min="0.4" max="1.4" step="0.05"></label>
+      <label>MUSIC VOLUME <input id="setting-music" type="range" min="0" max="0.5" step="0.05"></label>
+      <label class="check-row"><input id="setting-invert" type="checkbox"> INVERT Y</label>
+      <button id="settings-close" class="primary" type="button">DONE</button>
+      <button id="settings-reset" class="secondary" type="button">RESET DEFAULTS</button>
     </div>
   </div>
 
