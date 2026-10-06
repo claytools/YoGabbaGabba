@@ -18,3 +18,7 @@ Open the GitHub Pages site on your phone.
 - Song buttons: powers
 
 Landscape works best.
+
+## Music
+
+Placeholder music: **8-Bit Curious Theme** by emanresU — CC0.
