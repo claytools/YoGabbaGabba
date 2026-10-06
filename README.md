@@ -24,6 +24,6 @@ This is a fan-made, noncommercial project inspired by *Yo Gabba Gabba!* and surv
 
 ## Music
 
-Placeholder background music: **8-Bit Curious Theme** by emanresU — CC0.
+Placeholder background music: **Creepy Ambient Loop** by epb9000 — CC0.
 
 The character power sounds are original synthesized game stingers and do not use recordings from the show.
