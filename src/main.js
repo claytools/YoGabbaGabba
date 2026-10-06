@@ -12,8 +12,11 @@ const CONFIG = {
   walkSpeed: 4.25,
   sprintSpeed: 6.8,
   maxHealth: 100,
-  renderScaleMobile: 0.74,
+  renderScaleMobile: 1,
   renderScaleDesktop: 1,
+  maxStamina: 100,
+  staminaDrainPerSecond: 25,
+  staminaRegenPerSecond: 18,
   pickupRadius: 1.45,
   enemyDamagePerSecond: 27,
   enemyTouchRadius: 1.05,
@@ -79,7 +82,12 @@ const threatEl = document.querySelector('#threat');
 const messageEl = document.querySelector('#message');
 const joystickEl = document.querySelector('#joystick');
 const joystickKnob = document.querySelector('#joystick-knob');
+const lookstickEl = document.querySelector('#lookstick');
+const lookstickKnob = document.querySelector('#lookstick-knob');
 const sprintEl = document.querySelector('#sprint');
+const staminaFill = document.querySelector('#stamina-fill');
+const minimap = document.querySelector('#minimap');
+const minimapCtx = minimap.getContext('2d');
 const powerButtonsEl = document.querySelector('#power-buttons');
 const endEyebrow = document.querySelector('#end-eyebrow');
 const endTitle = document.querySelector('#end-title');
@@ -103,7 +111,9 @@ const player = {
   yaw: 0,
   pitch: 0,
   health: CONFIG.maxHealth,
+  stamina: CONFIG.maxStamina,
   sprinting: false,
+  sprintToggle: false,
   collected: new Set(),
   unlocked: new Set(),
   powerReadyAt: new Map(),
@@ -183,12 +193,27 @@ for (let i = 0; i < 13; i++) {
   scene.add(rock);
 }
 
-for (let i = 0; i < 20; i++) {
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(.035, .05, .65, 5), new THREE.MeshLambertMaterial({ color: 0x3d6d2c }));
-  stem.position.set(-23 + (i % 5) * 4.2, .33, 4 + Math.floor(i / 5) * 5.1);
+for (let i = 0; i < 52; i++) {
+  const col = i % 8;
+  const row = Math.floor(i / 8);
+  const x = -23 + col * 3.0 + (row % 2) * .7;
+  const z = 3.2 + row * 3.0;
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(.025, .045, .55 + (i % 3) * .12, 5), new THREE.MeshLambertMaterial({ color: 0x3d742d }));
+  stem.position.set(x, .3, z);
   scene.add(stem);
-  const flower = new THREE.Mesh(new THREE.SphereGeometry(.18, 6, 4), new THREE.MeshBasicMaterial({ color: i % 2 ? 0xff9fc5 : 0xffe86a }));
-  flower.position.set(stem.position.x, .74, stem.position.z);
+  const flower = new THREE.Group();
+  const petalColor = [0xff9fc5,0xffe86a,0xffffff,0xe98aff][i % 4];
+  for (let p=0;p<6;p++) {
+    const petal = new THREE.Mesh(new THREE.SphereGeometry(.13,6,4), new THREE.MeshBasicMaterial({ color: petalColor }));
+    const a=p/6*Math.PI*2;
+    petal.position.set(Math.cos(a)*.17, Math.sin(a)*.17, 0);
+    petal.scale.set(.65,1,.45);
+    flower.add(petal);
+  }
+  const center = new THREE.Mesh(new THREE.SphereGeometry(.08,6,4), new THREE.MeshBasicMaterial({ color: 0xffc83d }));
+  flower.add(center);
+  flower.position.set(x, .67 + (i % 3)*.1, z);
+  flower.rotation.x = -.2;
   scene.add(flower);
 }
 
@@ -294,6 +319,9 @@ function makeGabbaFigure(def, dark = false) {
 
 function makeCharacterStandIn(def) {
   const root = makeGabbaFigure(def, false);
+  root.traverse(obj => {
+    if (obj.isMesh && obj.material && 'emissiveIntensity' in obj.material) obj.material.emissiveIntensity *= 1.25;
+  });
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.05, 6, 20), new THREE.MeshBasicMaterial({ color: def.color }));
   ring.rotation.x = Math.PI / 2;
   ring.position.y = 0.08;
@@ -446,48 +474,57 @@ function buildPowerButtons() {
 buildPowerButtons();
 
 // ---------- controls ----------
-const joystick = { x: 0, y: 0, pointerId: null };
-function updateJoystick(clientX, clientY) {
-  const rect = joystickEl.getBoundingClientRect();
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-  let dx = clientX - cx;
-  let dy = clientY - cy;
-  const max = rect.width * .32;
-  const len = Math.hypot(dx, dy) || 1;
-  if (len > max) { dx = dx / len * max; dy = dy / len * max; }
-  joystick.x = dx / max;
-  joystick.y = dy / max;
-  joystickKnob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+function makeStick(element, knob, onMove) {
+  const state = { x: 0, y: 0, pointerId: null };
+  function update(clientX, clientY) {
+    const rect = element.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = clientX - cx;
+    let dy = clientY - cy;
+    const max = rect.width * .32;
+    const len = Math.hypot(dx, dy) || 1;
+    if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+    state.x = dx / max;
+    state.y = dy / max;
+    knob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+    onMove?.(state);
+  }
+  function reset() {
+    state.x = 0; state.y = 0; state.pointerId = null;
+    knob.style.transform = 'translate(-50%,-50%)';
+    onMove?.(state);
+  }
+  element.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    state.pointerId = e.pointerId;
+    element.setPointerCapture?.(e.pointerId);
+    update(e.clientX, e.clientY);
+  });
+  element.addEventListener('pointermove', e => { if (e.pointerId === state.pointerId) update(e.clientX, e.clientY); });
+  element.addEventListener('pointerup', e => { if (e.pointerId === state.pointerId) reset(); });
+  element.addEventListener('pointercancel', reset);
+  return { state, reset };
 }
-function resetJoystick() {
-  joystick.x = 0; joystick.y = 0; joystick.pointerId = null;
-  joystickKnob.style.transform = 'translate(-50%,-50%)';
-}
-joystickEl.addEventListener('pointerdown', e => {
-  e.preventDefault();
-  joystick.pointerId = e.pointerId;
-  joystickEl.setPointerCapture(e.pointerId);
-  updateJoystick(e.clientX, e.clientY);
-});
-joystickEl.addEventListener('pointermove', e => { if (e.pointerId === joystick.pointerId) updateJoystick(e.clientX, e.clientY); });
-joystickEl.addEventListener('pointerup', e => { if (e.pointerId === joystick.pointerId) resetJoystick(); });
-joystickEl.addEventListener('pointercancel', resetJoystick);
+const moveStick = makeStick(joystickEl, joystickKnob);
+const lookStick = makeStick(lookstickEl, lookstickKnob);
 
-function setSprint(on) {
-  player.sprinting = on;
-  sprintEl.classList.toggle('active', on);
+function refreshSprintButton() {
+  sprintEl.classList.toggle('active', player.sprintToggle);
+  sprintEl.classList.toggle('empty', player.stamina <= 0.5);
+  sprintEl.textContent = player.sprintToggle ? 'RUN ON' : 'RUN';
 }
-sprintEl.addEventListener('pointerdown', e => { e.preventDefault(); sprintEl.setPointerCapture(e.pointerId); setSprint(true); });
-sprintEl.addEventListener('pointerup', () => setSprint(false));
-sprintEl.addEventListener('pointercancel', () => setSprint(false));
+sprintEl.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (player.stamina > 0.5 || player.sprintToggle) player.sprintToggle = !player.sprintToggle;
+  refreshSprintButton();
+});
 
 let lookPointer = null;
 let lastLookX = 0;
 let lastLookY = 0;
 renderer.domElement.addEventListener('pointerdown', e => {
-  if (!started || ended) return;
-  if (e.pointerType === 'touch' && e.clientX < innerWidth * .43) return;
+  if (!started || ended || e.pointerType === 'touch') return;
   lookPointer = e.pointerId;
   lastLookX = e.clientX;
   lastLookY = e.clientY;
@@ -499,9 +536,8 @@ renderer.domElement.addEventListener('pointermove', e => {
   const dy = e.clientY - lastLookY;
   lastLookX = e.clientX;
   lastLookY = e.clientY;
-  const sensitivity = e.pointerType === 'touch' ? .0043 : .003;
-  player.yaw -= dx * sensitivity;
-  player.pitch -= dy * sensitivity;
+  player.yaw -= dx * .003;
+  player.pitch -= dy * .003;
   player.pitch = THREE.MathUtils.clamp(player.pitch, -1.1, 1.1);
 });
 renderer.domElement.addEventListener('pointerup', e => { if (e.pointerId === lookPointer) lookPointer = null; });
@@ -512,7 +548,7 @@ addEventListener('keydown', e => {
   if (/^Digit[1-5]$/.test(e.code)) usePower(POWERS[Number(e.code.slice(-1)) - 1]?.id);
 });
 addEventListener('keyup', e => keys.delete(e.code));
-addEventListener('blur', () => { keys.clear(); setSprint(false); resetJoystick(); });
+addEventListener('blur', () => { keys.clear(); moveStick.reset(); lookStick.reset(); });
 
 // ---------- game actions ----------
 function showMessage(text, ms = 2700) {
@@ -683,6 +719,7 @@ function usePower(id) {
 function updateHud() {
   countEl.textContent = player.collected.size + ' / 10';
   healthFill.style.width = Math.max(0, player.health) + '%';
+  staminaFill.style.width = Math.max(0, player.stamina) + '%';
   objectiveEl.textContent = lanceUnlocked ? 'SAVE DJ LANCE' : 'FIND EVERYONE';
 
   const now = performance.now() / 1000;
@@ -730,8 +767,8 @@ function blocked(x, z) {
 }
 
 function movePlayer(dt, now) {
-  let strafe = joystick.x;
-  let forward = -joystick.y;
+  let strafe = moveStick.state.x;
+  let forward = -moveStick.state.y;
   if (keys.has('KeyW') || keys.has('ArrowUp')) forward += 1;
   if (keys.has('KeyS') || keys.has('ArrowDown')) forward -= 1;
   if (keys.has('KeyD') || keys.has('ArrowRight')) strafe += 1;
@@ -739,7 +776,23 @@ function movePlayer(dt, now) {
   const mag = Math.hypot(strafe, forward);
   if (mag > 1) { strafe /= mag; forward /= mag; }
 
-  const sprinting = player.sprinting || keys.has('ShiftLeft') || keys.has('ShiftRight');
+  player.yaw -= lookStick.state.x * 2.85 * dt;
+  player.pitch -= lookStick.state.y * 2.15 * dt;
+  player.pitch = THREE.MathUtils.clamp(player.pitch, -1.1, 1.1);
+
+  const moving = Math.hypot(strafe, forward) > .08;
+  const keyboardSprint = keys.has('ShiftLeft') || keys.has('ShiftRight');
+  const wantsSprint = player.sprintToggle || keyboardSprint;
+  const sprinting = wantsSprint && moving && player.stamina > 0;
+
+  if (sprinting) {
+    player.stamina = Math.max(0, player.stamina - CONFIG.staminaDrainPerSecond * dt);
+    if (player.stamina <= 0) player.sprintToggle = false;
+  } else {
+    player.stamina = Math.min(CONFIG.maxStamina, player.stamina + CONFIG.staminaRegenPerSecond * dt);
+  }
+  refreshSprintButton();
+
   let speed = sprinting ? CONFIG.sprintSpeed : CONFIG.walkSpeed;
   if (now < player.bugRideUntil) speed *= 1.78;
 
@@ -836,6 +889,74 @@ function spawnGoobleIfNeeded(elapsed) {
   }
 }
 
+function drawMinimap() {
+  const ctx = minimapCtx;
+  const w = minimap.width, h = minimap.height;
+  const pad = 7;
+  const scale = (w - pad * 2) / (CONFIG.worldHalfSize * 2);
+  const mapX = x => pad + (x + CONFIG.worldHalfSize) * scale;
+  const mapY = z => pad + (z + CONFIG.worldHalfSize) * scale;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#101525';
+  ctx.fillRect(0, 0, w, h);
+
+  const zones = [
+    [-25,-25,25,25,'#654a8c'],
+    [-25,0,25,25,'#789a45'],
+    [0,-25,25,25,'#9a5934'],
+    [0,0,25,25,'#4c9bc3']
+  ];
+  for (const [x,z,zw,zh,c] of zones) {
+    ctx.fillStyle = c;
+    ctx.globalAlpha = .72;
+    ctx.fillRect(mapX(x), mapY(z), zw * scale, zh * scale);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = 'rgba(255,255,255,.38)';
+  ctx.lineWidth = 2;
+  for (const [x,z,ww,dd] of WALLS) {
+    ctx.strokeRect(mapX(x-ww/2), mapY(z-dd/2), ww*scale, dd*scale);
+  }
+
+  for (const item of collectibles) {
+    if (!item.parent) continue;
+    ctx.fillStyle = item.userData.type === 'character' ? '#fff7a8' : '#ffffff';
+    ctx.beginPath();
+    ctx.arc(mapX(item.position.x), mapY(item.position.z), item.userData.type === 'character' ? 3.2 : 2.2, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = lanceUnlocked ? '#7cff9b' : '#f39b43';
+  ctx.fillRect(mapX(lanceTV.position.x)-3, mapY(lanceTV.position.z)-3, 6, 6);
+
+  for (const enemy of enemies) {
+    ctx.fillStyle = enemy.userData.isGooble ? '#d9cfff' : '#ff4f5c';
+    ctx.beginPath();
+    ctx.arc(mapX(enemy.position.x), mapY(enemy.position.z), enemy.userData.isGooble ? 3.2 : 2.7, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  const px = mapX(player.position.x), py = mapY(player.position.z);
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(-player.yaw);
+  ctx.fillStyle = '#8ef4ff';
+  ctx.beginPath();
+  ctx.moveTo(0, -6);
+  ctx.lineTo(4.5, 5);
+  ctx.lineTo(0, 2.5);
+  ctx.lineTo(-4.5, 5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(255,255,255,.55)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(.5,.5,w-1,h-1);
+}
+
 function updateEnemies(dt, now) {
   let nearest = Infinity;
 
@@ -893,6 +1014,7 @@ function animate() {
     spawnGoobleIfNeeded(elapsed);
     updateEnemies(dt, now);
     updateHud();
+    drawMinimap();
   }
   renderer.render(scene, camera);
 }
@@ -900,7 +1022,8 @@ function animate() {
 function resize() {
   const coarse = matchMedia('(pointer:coarse)').matches || innerWidth < 820;
   const scale = coarse ? CONFIG.renderScaleMobile : CONFIG.renderScaleDesktop;
-  renderer.setPixelRatio(1);
+  const dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.45 : 1.7);
+  renderer.setPixelRatio(dpr);
   renderer.setSize(Math.max(1, Math.floor(innerWidth * scale)), Math.max(1, Math.floor(innerHeight * scale)), false);
   renderer.domElement.style.width = innerWidth + 'px';
   renderer.domElement.style.height = innerHeight + 'px';
@@ -923,5 +1046,7 @@ function beginGame() {
 startButton.addEventListener('click', beginGame);
 restartButton.addEventListener('click', () => location.reload());
 
+refreshSprintButton();
 updateHud();
+drawMinimap();
 animate();
