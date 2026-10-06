@@ -68,6 +68,8 @@ const WALLS = [
   [-7, 7, 5, 1.3, 1.8], [8, 7, 5, 1.3, 1.8],
 ];
 
+const appShell = document.querySelector('#app-shell');
+const screenFrame = document.querySelector('#screen-frame');
 const gameEl = document.querySelector('#game');
 const hudEl = document.querySelector('#hud');
 const startScreen = document.querySelector('#start-screen');
@@ -85,6 +87,9 @@ const joystickKnob = document.querySelector('#joystick-knob');
 const lookstickEl = document.querySelector('#lookstick');
 const lookstickKnob = document.querySelector('#lookstick-knob');
 const sprintEl = document.querySelector('#sprint');
+const fullscreenToggle = document.querySelector('#fullscreen-toggle');
+const musicToggle = document.querySelector('#music-toggle');
+const bgm = document.querySelector('#bgm');
 const staminaFill = document.querySelector('#stamina-fill');
 const minimap = document.querySelector('#minimap');
 const minimapCtx = minimap.getContext('2d');
@@ -98,7 +103,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x020205);
 scene.fog = new THREE.FogExp2(0x020205, 0.038);
 
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 85);
+const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 85);
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 renderer.shadowMap.enabled = false;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -518,6 +523,39 @@ sprintEl.addEventListener('pointerdown', e => {
   e.preventDefault();
   if (player.stamina > 0.5 || player.sprintToggle) player.sprintToggle = !player.sprintToggle;
   refreshSprintButton();
+});
+
+let musicOn = false;
+async function setMusic(on) {
+  musicOn = on;
+  musicToggle.classList.toggle('active', on);
+  musicToggle.textContent = on ? 'MUSIC ON' : 'MUSIC';
+  if (on) {
+    bgm.volume = .22;
+    try { await bgm.play(); } catch (_) { musicOn = false; musicToggle.classList.remove('active'); musicToggle.textContent = 'MUSIC'; }
+  } else {
+    bgm.pause();
+  }
+}
+musicToggle.addEventListener('click', () => setMusic(!musicOn));
+
+fullscreenToggle.addEventListener('click', async () => {
+  try {
+    if (!document.fullscreenElement && appShell.requestFullscreen) {
+      await appShell.requestFullscreen({ navigationUI: 'hide' });
+    } else if (document.fullscreenElement && document.exitFullscreen) {
+      await document.exitFullscreen();
+    } else {
+      document.body.classList.toggle('pseudo-fullscreen');
+    }
+  } catch (_) {
+    document.body.classList.toggle('pseudo-fullscreen');
+  }
+  setTimeout(resize, 120);
+});
+document.addEventListener('fullscreenchange', () => {
+  fullscreenToggle.textContent = document.fullscreenElement ? 'EXIT FULL' : 'FULL';
+  setTimeout(resize, 120);
 });
 
 let lookPointer = null;
@@ -1020,14 +1058,17 @@ function animate() {
 }
 
 function resize() {
-  const coarse = matchMedia('(pointer:coarse)').matches || innerWidth < 820;
+  const rect = screenFrame.getBoundingClientRect();
+  const width = Math.max(1, Math.floor(rect.width));
+  const height = Math.max(1, Math.floor(rect.height));
+  const coarse = matchMedia('(pointer:coarse)').matches || innerWidth < 900;
   const scale = coarse ? CONFIG.renderScaleMobile : CONFIG.renderScaleDesktop;
-  const dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.45 : 1.7);
+  const dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.35 : 1.7);
   renderer.setPixelRatio(dpr);
-  renderer.setSize(Math.max(1, Math.floor(innerWidth * scale)), Math.max(1, Math.floor(innerHeight * scale)), false);
-  renderer.domElement.style.width = innerWidth + 'px';
-  renderer.domElement.style.height = innerHeight + 'px';
-  camera.aspect = innerWidth / innerHeight;
+  renderer.setSize(Math.max(1, Math.floor(width * scale)), Math.max(1, Math.floor(height * scale)), false);
+  renderer.domElement.style.width = width + 'px';
+  renderer.domElement.style.height = height + 'px';
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
@@ -1041,6 +1082,7 @@ function beginGame() {
   hudEl.classList.remove('hidden');
   showMessage('DJ LANCE IS TRAPPED! FIND 5 FRIENDS + 5 SONGS.', 4200);
   pickupSoundCtx?.resume?.();
+  setMusic(true);
 }
 
 startButton.addEventListener('click', beginGame);
